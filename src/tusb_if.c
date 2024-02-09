@@ -124,3 +124,28 @@ void osal_task_delay(uint32_t msec) {
         // do nothing.
     }
 }
+
+/**
+ * @brief Getting elapse time with milli seconds unit.
+ * @param from Tick count of measuring from.
+ * @param now Tick count of measuring time to.
+ * @return Elapse milli seconds returned.
+ */
+uint32_t osal_get_elapse(osal_tick_type_t from, osal_tick_type_t now) {
+    return (now - from);
+}
+/**
+ * @brief Getting system tick count.
+ * @return Tick count.
+ */
+osal_tick_type_t osal_get_tick_count(void) {
+    return get_tick_count();
+}
+/**
+ * @brief Convert milli seconds to tick count.
+ * @param msec Milliseconds
+ * @return Tick count returned.
+ */
+osal_tick_type_t osal_to_tick_count(uint32_t msec) {
+    return (osal_tick_type_t)(msec);
+}

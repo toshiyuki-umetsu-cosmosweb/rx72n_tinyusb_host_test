@@ -27,6 +27,12 @@
 #ifndef _TUSB_OSAL_PICO_H_
 #define _TUSB_OSAL_PICO_H_
 
+// Raspberry Pi PICO series
+// https://www.raspberrypi.com/products/raspberry-pi-pico/
+// Raspberry Pi PICO SDK
+// https://github.com/raspberrypi/pico-sdk
+
+
 #include "pico/time.h"
 #include "pico/sem.h"
 #include "pico/mutex.h"
@@ -42,6 +48,35 @@
 TU_ATTR_ALWAYS_INLINE static inline void osal_task_delay(uint32_t msec)
 {
   sleep_ms(msec);
+}
+/**
+ * @brief osal_tick_type_t Tick count type.
+ */
+typedef absolute_time_t osal_tick_type_t;
+
+/**
+ * @brief Getting elapse time with milli seconds unit.
+ * @param from Tick count of measuring from.
+ * @param now Tick count of measuring time to.
+ * @return Elapse milli seconds returned.
+ */
+TU_ATTR_ALWAYS_INLINE static inline uint32_t osal_get_elapse(osal_tick_type_t from, osal_tick_type_t now) {
+    return absolute_time_diff_us(from, now) / 1000;
+}
+/**
+ * @brief Getting system tick count.
+ * @return Tick count.
+ */
+TU_ATTR_ALWAYS_INLINE static inline osal_tick_type_t osal_get_tick_count(void) {
+    return get_absolute_time();
+}
+/**
+ * @brief Convert milli seconds to tick count.
+ * @param msec Milliseconds
+ * @return Tick count returned.
+ */
+TU_ATTR_ALWAYS_INLINE static inline osal_tick_type_t osal_to_tick_count(uint32_t msec) {
+    return make_timeout_time_ms(msec);
 }
 
 //--------------------------------------------------------------------+

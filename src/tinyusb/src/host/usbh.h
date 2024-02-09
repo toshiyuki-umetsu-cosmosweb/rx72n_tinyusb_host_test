@@ -63,7 +63,9 @@ struct tuh_xfer_s
     };
 
     uint8_t *buffer;           // not available in callback if not control transfer
-    tuh_xfer_cb_t complete_cb;
+    tuh_xfer_cb_t complete_cb; // Xfer done callback.
+                               // If using async I/O, set this address to valid function.
+                               // If using sync I/O, set complete_cb to NULL.
     uintptr_t user_data;
 
 // uint32_t timeout_ms;    // place holder, not supported yet

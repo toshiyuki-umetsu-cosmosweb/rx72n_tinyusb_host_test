@@ -38,6 +38,35 @@ extern "C" {
 #if CFG_TUH_ENABLED
 // currently only needed/available in host mode
 TU_ATTR_WEAK void osal_task_delay(uint32_t msec);
+
+#ifdef CFG_TUH_NONE_OS_TICK_TYPE
+typedef CFG_TUH_NONE_OS_TICK_TYPE osal_tick_type_t;
+#else
+/**
+ * @brief osal_tick_type_t Tick count type.
+ */
+typedef uint32_t osal_tick_type_t;
+#endif
+
+/**
+ * @brief Getting elapse time with milli seconds unit.
+ * @param from Tick count of measuring from.
+ * @param now Tick count of measuring time to.
+ * @return Elapse milli seconds returned.
+ */
+TU_ATTR_WEAK uint32_t osal_get_elapse(osal_tick_type_t from, osal_tick_type_t now);
+/**
+ * @brief Getting system tick count.
+ * @return Tick count.
+ */
+TU_ATTR_WEAK osal_tick_type_t osal_get_tick_count(void);
+/**
+ * @brief Convert milli seconds to tick count.
+ * @param msec Milliseconds
+ * @return Tick count returned.
+ */
+TU_ATTR_WEAK osal_tick_type_t osal_to_tick_count(uint32_t msec);
+
 #endif
 
 //--------------------------------------------------------------------+

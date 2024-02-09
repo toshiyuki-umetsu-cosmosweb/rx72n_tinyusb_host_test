@@ -27,6 +27,10 @@
 #ifndef _TUSB_OSAL_FREERTOS_H_
 #define _TUSB_OSAL_FREERTOS_H_
 
+// FreeRTOS
+// https://aws.amazon.com/freertos/
+
+
 // FreeRTOS Headers
 #include TU_INCLUDE_PATH(CFG_TUSB_OS_INC_PATH,FreeRTOS.h)
 #include TU_INCLUDE_PATH(CFG_TUSB_OS_INC_PATH,semphr.h)
@@ -99,6 +103,36 @@ TU_ATTR_ALWAYS_INLINE static inline uint32_t _osal_ms2tick(uint32_t msec) {
 
 TU_ATTR_ALWAYS_INLINE static inline void osal_task_delay(uint32_t msec) {
   vTaskDelay(pdMS_TO_TICKS(msec));
+}
+
+/**
+ * @brief osal_tick_type_t Tick count type.
+ */
+typedef portTickType osal_tick_type_t;
+
+/**
+ * @brief Getting elapse time with milli seconds unit.
+ * @param from Tick count of measuring from.
+ * @param now Tick count of measuring time to.
+ * @return Elapse milli seconds returned.
+ */
+TU_ATTR_ALWAYS_INLINE static inline uint32_t osal_get_elapse(osal_tick_type_t from, osal_tick_type_t now) {
+    return (now - from) * portTICK_RATE_MS;
+}
+/**
+ * @brief Getting system tick count.
+ * @return Tick count.
+ */
+TU_ATTR_ALWAYS_INLINE static inline osal_tick_type_t osal_get_tick_count(void) {
+    return xTaskGetTickCount();
+}
+/**
+ * @brief Convert milli seconds to tick count.
+ * @param msec Milliseconds
+ * @return Tick count returned.
+ */
+TU_ATTR_ALWAYS_INLINE static inline osal_tick_type_t osal_to_tick_count(uint32_t msec) {
+    return pdMS_TO_TICKS(msec);
 }
 
 //--------------------------------------------------------------------+

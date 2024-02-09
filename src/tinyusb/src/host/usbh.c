@@ -276,9 +276,11 @@ static void process_removing_device(uint8_t rhport, uint8_t hub_addr, uint8_t hu
 static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size);
 static bool usbh_control_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
 
-#if (CFG_TUSB_OS == OPT_OS_NONE) && (CFG_TUSB_OS_NONE_USE_DEFAULT_DELAY)
-// TODO rework time-related function later
-// weak and overridable
+#if (CFG_TUSB_OS == OPT_OS_NONE) && (!CFG_TUH_USE_CUSTOM_TIME_FUNCTIONS)
+/**
+ * @brief Delay specified time in millis.
+ * @param msec Wait time in millis.
+ */
 TU_ATTR_WEAK void osal_task_delay(uint32_t msec)
 {
     const uint32_t start = hcd_frame_number (_usbh_controller);
@@ -286,6 +288,31 @@ TU_ATTR_WEAK void osal_task_delay(uint32_t msec)
     {
     }
 }
+/**
+ * @brief Getting elapse time with milli seconds unit.
+ * @param from Tick count of measuring from.
+ * @param now Tick count of measuring time to.
+ * @return Elapse milli seconds returned.
+ */
+TU_ATTR_WEAK uint32_t osal_get_elapse(osal_tick_type_t from, osal_tick_type_t now) {
+    return (now - from);
+}
+/**
+ * @brief Getting system tick count.
+ * @return Tick count.
+ */
+TU_ATTR_WEAK osal_tick_type_t osal_get_tick_count(void) {
+    return hcd_frame_number(_usbh_controller);
+}
+/**
+ * @brief Convert milli seconds to tick count.
+ * @param msec Milliseconds
+ * @return Tick count returned.
+ */
+TU_ATTR_WEAK osal_tick_type_t osal_to_tick_count(uint32_t msec) {
+    return (osal_tick_type_t)(msec);
+}
+
 #endif
 
 /**
@@ -661,6 +688,13 @@ static void _control_blocking_complete_cb(tuh_xfer_t *xfer)
 }
 
 // TODO timeout_ms is not supported yet
+/**
+ * @brief Submit a control transfer
+ * async: complete callback invoked when finished.
+ * sync : blocking if complete callback is NULL.
+ * @param xfer Transfer request data.
+ * @return On success, return true. If error occurred, return false.
+ */
 bool tuh_control_xfer(tuh_xfer_t *xfer)
 {
     // EP0 with setup packet
@@ -708,7 +742,7 @@ bool tuh_control_xfer(tuh_xfer_t *xfer)
             (xfer->setup->bmRequestType_bit.type == TUSB_REQ_TYPE_STANDARD && xfer->setup->bRequest <= TUSB_REQ_SYNCH_FRAME) ?
             tu_str_std_request[xfer->setup->bRequest] : "Class Request");TU_LOG_BUF(CFG_TUH_LOG_LEVEL, xfer->setup, 8);TU_LOG_USBH("\r\n");
 
-    if (xfer->complete_cb)
+    if (xfer->complete_cb != NULL)
     {
         TU_ASSERT(hcd_setup_send (rhport, daddr, (uint8_t const* ) &_ctrl_xfer.request));
     }

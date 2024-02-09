@@ -45,9 +45,7 @@
 #define CFG_TUSB_OS           OPT_OS_NONE
 #endif
 
-#ifndef CFG_TUSB_OS_NONE_USE_DEFAULT_DELAY
-#define CFG_TUSB_OS_NONE_USE_DEFAULT_DELAY 0
-#endif
+#define CFG_TUH_USE_CUSTOM_TIME_FUNCTIONS (1)
 
 
 #ifndef CFG_TUSB_DEBUG

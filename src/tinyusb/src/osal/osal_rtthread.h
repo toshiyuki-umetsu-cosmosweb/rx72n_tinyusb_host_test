@@ -27,6 +27,10 @@
 #ifndef _TUSB_OSAL_RTTHREAD_H_
 #define _TUSB_OSAL_RTTHREAD_H_
 
+// RT-Thread
+// https://www.rt-thread.io/
+// https://github.com/RT-Thread/rt-thread
+
 // RT-Thread Headers
 #include "rtthread.h"
 
@@ -39,6 +43,36 @@ extern "C" {
 //--------------------------------------------------------------------+
 TU_ATTR_ALWAYS_INLINE static inline void osal_task_delay(uint32_t msec) {
   rt_thread_mdelay(msec);
+}
+/**
+ * @brief osal_tick_type_t Tick count type.
+ */
+typedef rt_tick_t osal_tick_type_t;
+
+/**
+ * @brief Getting elapse time with milli seconds unit.
+ * @param from Tick count of measuring from.
+ * @param now Tick count of measuring time to.
+ * @return Elapse milli seconds returned.
+ */
+TU_ATTR_ALWAYS_INLINE static inline uint32_t osal_get_elapse(osal_tick_type_t from, osal_tick_type_t now) {
+    osal_tick_type_t elapse_ticks = now - from;
+    return (uint32_t)((elapse_ticks * 1000) / RT_TICK_PER_SECOND);
+}
+/**
+ * @brief Getting system tick count.
+ * @return Tick count.
+ */
+TU_ATTR_ALWAYS_INLINE static inline osal_tick_type_t osal_get_tick_count(void) {
+    return rt_tick_get();
+}
+/**
+ * @brief Convert milli seconds to tick count.
+ * @param msec Milliseconds
+ * @return Tick count returned.
+ */
+TU_ATTR_ALWAYS_INLINE static inline osal_tick_type_t osal_to_tick_count(uint32_t msec) {
+    return rt_tick_from_millisecond((rt_int32_t)(msec));
 }
 
 //--------------------------------------------------------------------+
