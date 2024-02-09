@@ -4,8 +4,6 @@ This source codes are copied from https://github.com/hathach/tinyusb in February
 
 https://docs.tinyusb.org/en/latest/
 
-
-
 # メモ
 
 Getting Startedの和訳に補足したもの。
@@ -36,10 +34,12 @@ CFG_TUSB_MCUは tusb_option.h内のOPT_MCU_xxxx を定義します。例えば
 
 # RX-72N (GCC for Renesas RX)ポーティングメモ
 
+## コンパイラはCC-RX前提のコードになっています。
+
 コピーしてきたソースだと、portable/renesas/rusb2/rusb2_type.h でエラーが出ます。
 これはCCRXがターゲットとなっているためです。
 そのため、GNU C用に生成されたiodefine.hを元に一部修正をかけました。
-__CCRX__ が定義されているかどうかで大きく分岐させましたが、ソースコードの無駄でした。
+__CCRX__ が定義されているかどうかで大きく分岐させましたが、ソースコードが無駄に長くなりました。
 
 * TU_ATTR_PACKED_BEGIN
 * TU_ATTR_BIT_FIELD_ORDER_BEGIN
@@ -48,5 +48,64 @@ __CCRX__ が定義されているかどうかで大きく分岐させました�
 を上手く処理してあげるように実装すると良かったように思います。
 FITモジュール、CGコンポーネントと組み合わせる場合は、iodefine.hをインクルードするよりも、
 platform.hをインクルードした方が良いです。
+
+## WDTを使うとすると一工夫必要
+
+tuh_task()内の処理が普通に秒オーダーでかかることがあり、
+こうなると内蔵WDTのカウンタを余裕でタイムアウトさせてしまいます。
+そのため、WDTを使う場合には一工夫が必要です。
+今回のサンプルでは割愛しました。
+
+## 接続処理中にATTACHイベントが入るとハングアップします。
+
+usbh.cにて、接続処理中にATTACHイベントが入ったとき、
+後で処理するためにイベントキューにATTACHイベントを追加します。
+tuh_task()内でイベントキューが空になるまで制御を返さないため、ハングアップします。
+usbh.cのコメントに「better to have an separated queue for newly attached devices」とあるとおり、
+接続処理中に検出したATTCHイベントは別キューに入れるように変更しました。
+
+## 切断処理するとハングアップします。
+
+切断処理、つまりUSBを引っこ抜くと応答が返らなくなります。
+これはTU_ATTR_WEAK void osal_task_delay()から戻らなくなるためのようでした。
+
+~~~
+TU_ATTR_WEAK void osal_task_delay(uint32_t msec) {
+  const uint32_t start = hcd_frame_number(_usbh_controller);
+  while ( ( hcd_frame_number(_usbh_controller) - start ) < msec ) {} // ここから出てこない
+}
+~~~
+hcd_frame_number()が1msec毎に更新されることを使用した設計で、RX用ポーティングでは、
+FRMNUMのFRNM[10:0]の値を返す実装になっています。
+このSRNMはSOF発行タイミングに更新されますが、どうやら未接続では更新されないようで、
+結果としてデバイス未接続中は時間計測が正しくできないようです。
+
+usbh.cのコメントに「rework time-related function later」とあるとおり、
+osal_task_delayは定義しなおしした方がよいです。
+このテストコードでは、TPU0,ELC,CMTW0を使用して、
+1ms毎に歩進するハードウェアTickカウンタを用意し、
+これを使ってosal_task_delay()の機能を提供するように変更しました。
+
+~~~
+uint32_t get_tick_count(void) {
+    return CMTW0.CMWCNT;
+}
+~~~
+~~~
+void osal_task_delay(uint32_t msec) {
+    volatile uint32_t begin = get_tick_count();
+    while ((get_tick_count() - begin) < msec) {
+        // do nothing.
+    }
+}
+~~~
+
+## USBコネクタがデリケート？
+
+Envision Kitのホストコネクタの挿抜具合により、
+上手くATTACHされる場合と、されない場合があるようでした。
+ちょっと斜めになると難しいようです。
+
+
 
 

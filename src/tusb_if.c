@@ -55,6 +55,53 @@ void tusbif_proc_usb_event(void) {
 }
 
 /**
+ * @brief アタッチされたときに通知を受け取る。
+ * この時点ではUSBデバイスがConfigされていない。
+ * @param daddr デバイスアドレス
+ * @param desc_device USB device descriptor.
+ */
+void tuh_attach_cb (uint8_t daddr, tusb_desc_device_t const *desc_device) {
+    uint16_t vid;
+    uint16_t pid;
+    if (tuh_vid_pid_get(daddr, &vid, &pid)) {
+        printf("Attached DevAddr=%d VID=%04xh PID=%04xh\n", daddr, vid, pid);
+    } else {
+        printf("Attached DevAddr=%d VID=(Unknown) PID=(Unknown)\n", daddr);
+    }
+}
+
+/**
+ * @brief マウントされたときに通知を受け取る。
+ * @note TinyUSBで有効化されているドライバにて、Configurationされた場合に通知される。
+ *       不明なデバイスでは通知されない。
+ * @param daddr デバイスアドレス
+ */
+void tuh_mount_cb(uint8_t daddr) {
+    uint16_t vid;
+    uint16_t pid;
+    if (tuh_vid_pid_get(daddr, &vid, &pid)) {
+        printf("Mounted DevAddr=%d VID=%04xh PID=%04xh\n", daddr, vid, pid);
+    } else {
+        printf("Mounted DevAddr=%d VID=(Unknown) PID=(Unknown)\n", daddr);
+    }
+}
+
+/**
+ * @brief アンマウントされたときに通知を受け取る。
+ * @note TinyUSBで有効化されていないデバイスでも、切断検知されたときに通知される。
+ * @param daddr デバイスアドレス
+ */
+void tuh_umount_cb(uint8_t daddr) {
+    uint16_t vid;
+    uint16_t pid;
+    if (tuh_vid_pid_get(daddr, &vid, &pid)) {
+        printf("Detached DevAddr=%d VID=%04xh PID=%04xh\n", daddr, vid, pid);
+    } else {
+        printf("Detached DevAddr=%d VID=(Unknown) PID=(Unknown)\n", daddr);
+    }
+}
+
+/**
  * @brief HIDデータ受信時コールバック(と思われる)
  * @param dev_addr 送信元デバイスのデバイスアドレス
  * @param idx インデックス番号
@@ -72,7 +119,7 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t idx, uint8_t const* re
  * @note R_BSP_SoftwareDelay()の方が良いかも。
  */
 void osal_task_delay(uint32_t msec) {
-    uint32_t begin = get_tick_count();
+    volatile uint32_t begin = get_tick_count();
     while ((get_tick_count() - begin) < msec) {
         // do nothing.
     }

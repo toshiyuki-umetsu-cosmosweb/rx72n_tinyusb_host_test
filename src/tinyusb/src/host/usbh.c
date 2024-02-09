@@ -305,7 +305,11 @@ TU_ATTR_ALWAYS_INLINE static inline bool queue_event(osal_queue_t pq, hcd_event_
 //--------------------------------------------------------------------+
 // Device API
 //--------------------------------------------------------------------+
-
+/**
+ * @brief Check device is mounted or not.
+ * @param dev_addr Device address
+ * @return If specified device is mounted, return true. Otherwise, return false.
+ */
 bool tuh_mounted(uint8_t dev_addr)
 {
     usbh_device_t *dev = get_device (dev_addr);
@@ -313,6 +317,13 @@ bool tuh_mounted(uint8_t dev_addr)
     return dev->configured;
 }
 
+/**
+ * @brief Get VID/PID of device. This function return cached data.
+ * @param dev_addr Device address
+ * @param vid Address to store VID.
+ * @param pid Address to store PID.
+ * @return true returned.
+ */
 bool tuh_vid_pid_get(uint8_t dev_addr, uint16_t *vid, uint16_t *pid)
 {
     *vid = *pid = 0;
@@ -501,6 +512,13 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr)
     }
 }
 
+/**
+ * @brief Process USB event.
+ * @param pevent Event data.
+ * @param in_isr Whether called in interrupt or not. If call this function at ISR routine, specify true to lock queue
+ * @return When calling function can continue to process event, return true.
+ *         If need to stop processing event, return false.
+ */
 static bool proc_queue_event(hcd_event_t *pevent, bool in_isr)
 {
     switch (pevent->event_id)
@@ -536,7 +554,7 @@ static bool proc_queue_event(hcd_event_t *pevent, bool in_isr)
 
 #if CFG_TUH_HUB
             // TODO remove
-            if ( event.connection.hub_addr != 0 && event.connection.hub_port != 0) {
+            if ( pevent->connection.hub_addr != 0 && pevent->connection.hub_port != 0) {
               // done with hub, waiting for next data on status pipe
               (void) hub_edpt_status_xfer( pevent->connection.hub_addr );
             }
@@ -652,14 +670,16 @@ bool tuh_control_xfer(tuh_xfer_t *xfer)
     uint8_t const daddr = xfer->daddr;
     if (daddr == 0)
     {
-        if (!_dev0.enumerating)
+        if (!_dev0.enumerating) {
             return false;
+        }
     }
     else
     {
         usbh_device_t const *dev = get_device (daddr);
-        if (dev && dev->connected == 0)
+        if (dev && dev->connected == 0) {
             return false;
+        }
     }
 
     // pre-check to help reducing mutex lock
@@ -1323,8 +1343,9 @@ static void process_removing_device(uint8_t rhport, uint8_t hub_addr, uint8_t hu
             else
             {
                 // Invoke callback before closing driver (maybe call it later ?)
-                if (tuh_umount_cb)
+                if (tuh_umount_cb) {
                     tuh_umount_cb (daddr);
+                }
             }
 
             // Close class driver
@@ -1544,7 +1565,9 @@ static void process_enumeration(tuh_xfer_t *xfer)
             dev->i_product = desc_device->iProduct;
             dev->i_serial = desc_device->iSerialNumber;
 
-            //  if (tuh_attach_cb) tuh_attach_cb((tusb_desc_device_t*) _usbh_ctrl_buf);
+            if (tuh_attach_cb) {
+                tuh_attach_cb(daddr, desc_device);
+            }
 
             // Get 9-byte for total length
             uint8_t const config_idx = CONFIG_NUM - 1;
@@ -1859,8 +1882,9 @@ void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num)
         else
         {
             // Invoke callback if available
-            if (tuh_mount_cb)
+            if (tuh_mount_cb) {
                 tuh_mount_cb (dev_addr);
+            }
         }
     }
 }

@@ -579,7 +579,9 @@ uint32_t hcd_frame_number(uint8_t rhport)
 
   /* The device must be reset at least once after connection
    * in order to start the frame counter. */
-  if (_hcd.need_reset) hcd_port_reset(rhport);
+  if (_hcd.need_reset) {
+      hcd_port_reset(rhport);
+  }
   return rusb->FRMNUM_b.FRNM;
 }
 

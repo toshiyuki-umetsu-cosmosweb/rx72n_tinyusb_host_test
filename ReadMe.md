@@ -12,6 +12,8 @@ Test code to try to use tinyusb host stack with RX-72N MCU.
 
 * GCC for Renesas RX 8.3.0
 
+* None OS
+
 # Reference URL
 
 Tiny USB [https://docs.tinyusb.org/](https://docs.tinyusb.org/)
