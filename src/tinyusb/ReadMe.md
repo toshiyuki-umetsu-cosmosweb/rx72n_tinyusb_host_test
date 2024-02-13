@@ -64,7 +64,7 @@ tuh_task()内でイベントキューが空になるまで制御を返さない�
 usbh.cのコメントに「better to have an separated queue for newly attached devices」とあるとおり、
 接続処理中に検出したATTCHイベントは別キューに入れるように変更しました。
 
-## 切断処理するとハングアップします。
+## (RX-72N)切断処理するとハングアップします。
 
 切断処理、つまりUSBを引っこ抜くと応答が返らなくなります。
 これはTU_ATTR_WEAK void osal_task_delay()から戻らなくなるためのようでした。
@@ -100,9 +100,44 @@ void osal_task_delay(uint32_t msec) {
 }
 ~~~
 
+## ちょっとわかりづらかったマクロ関数
+
+### TU_VERIFY(__VA_ARGS__)
+
+ **__VA_ARGS__**  が偽の時に **false** を返す。
+ #define定義のちょっと上にコメントで説明が書いてありました。
+
+~~~
+TU_VERIFY(__VA_ARGS__)
+｜
+｜ #define TU_VERIFY(...)                 _GET_3RD_ARG(__VA_ARGS__, TU_VERIFY_2ARGS, TU_VERIFY_1ARGS, _dummy)(__VA_ARGS__)
+↓
+_GET_3RD_ARG(__VA_ARGS__, TU_VERIFY_2ARGS, TU_VERIFY_1ARGS, _dummy)(__VA_ARGS__)
+｜
+｜ #define _GET_3RD_ARG(arg1, arg2, arg3, ...)        arg3
+↓
+TU_VERIFY_1ARGS(__VA_ARGS__)
+｜
+｜ #define TU_VERIFY_1ARGS(_cond)         TU_VERIFY_DEFINE(_cond, false)
+↓
+TU_VERIFY_DEFINE(__VA_ARGS__, false)
+｜
+｜#define TU_VERIFY_DEFINE(_cond, _ret)    \
+｜  do {                                   \
+｜    if ( !(_cond) ) { return _ret; }     \
+｜  } while(0)
+↓
+do {
+    if (!(__VA_ARGS__) { 
+        return false;
+    }
+} while (0)
+~~~
+
+
 ## USBコネクタがデリケート？
 
-Envision Kitのホストコネクタの挿抜具合により、
+RX-72N Envision Kitのホストコネクタの挿抜具合により、
 上手くATTACHされる場合と、されない場合があるようでした。
 ちょっと斜めになると難しいようです。
 

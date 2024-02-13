@@ -18,5 +18,19 @@ Test code to try to use tinyusb host stack with RX-72N MCU.
 
 Tiny USB [https://docs.tinyusb.org/](https://docs.tinyusb.org/)
 
+# Perpose of this repository
+
+* Try to use Tiny USB host stack at Renesas RX MCU.
+* Try to get descriptors from USB devices.
+
+
+# Porting Note (Ja)
+
+[src/tinyusb/ReadMe.md](src/tinyusb/ReadMe.md)
+
+# Diagrams
+
+(Block Diagram)[BlockDiagram.png]
+(System Diagram)[SystemDiagram.png]
 
 
