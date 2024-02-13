@@ -30,7 +30,10 @@ Tiny USB [https://docs.tinyusb.org/](https://docs.tinyusb.org/)
 
 # Diagrams
 
-(Block Diagram)[BlockDiagram.png]
-(System Diagram)[SystemDiagram.png]
+## Block Diagram 
+
+![](BlockDiagram.png)
+
+![](SystemDiagram.png)
 
 
