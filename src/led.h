@@ -11,5 +11,4 @@
 void led_set(bool is_on);
 bool led_is_set(void);
 
-
 #endif /* LED_H_ */

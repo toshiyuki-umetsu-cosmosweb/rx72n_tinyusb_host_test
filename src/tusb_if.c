@@ -10,28 +10,30 @@
 #include "led.h"
 #include "tusb_if.h"
 
-R_BSP_PRAGMA_INTERRUPT(INT_Excep_USB0_USBI0, VECT(USB0,USBI0))
+R_BSP_PRAGMA_INTERRUPT(INT_Excep_USB0_USBI0, VECT(USB0, USBI0))
 
 /**
  * @brief USB0 USBI割り込み
  */
-R_BSP_ATTRIB_INTERRUPT void INT_Excep_USB0_USBI0(void) {
+R_BSP_ATTRIB_INTERRUPT void INT_Excep_USB0_USBI0(void)
+{
     tuh_int_handler(0);
-    return ;
+    return;
 }
 
 /**
  * @brief 初期化する
  */
-void tusbif_init(void) {
+void tusbif_init(void)
+{
     // MCU端子設定
     R_BSP_RegisterProtectDisable(BSP_REG_PROTECT_MPC); // MPCレジスタアクセス許可
 
     // VBUSEN端子
-    MPC.P16PFS.BYTE = 0x12u; // USB0_VBUSEN
-    PORT1.PMR.BIT.B6 = 1u; // P16 to Peripheral.
+    MPC.P16PFS.BYTE = 0x12u;                          // USB0_VBUSEN
+    PORT1.PMR.BIT.B6 = 1u;                            // P16 to Peripheral.
     R_BSP_RegisterProtectEnable(BSP_REG_PROTECT_MPC); // MPCレジスタアクセス禁止
-    PORT1.PMR.BIT.B6 = 1u; // P16 to Peripheral.
+    PORT1.PMR.BIT.B6 = 1u;                            // P16 to Peripheral.
 
     // 割り込みレベル設定
     IPR(USB0, USBI0) = 3;
@@ -39,19 +41,21 @@ void tusbif_init(void) {
     // TinyUSB初期化
     tusb_init();
 
-    return ;
+    return;
 }
 
 /**
  * @brief USBイベント処理をする
  */
-void tusbif_proc_usb_event(void) {
-    if (tuh_task_event_ready()) {
+void tusbif_proc_usb_event(void)
+{
+    if (tuh_task_event_ready())
+    {
         led_set(true);
         tuh_task(); // USB ホスト処理
         led_set(false);
     }
-    return ;
+    return;
 }
 
 /**
@@ -60,12 +64,16 @@ void tusbif_proc_usb_event(void) {
  * @param daddr デバイスアドレス
  * @param desc_device USB device descriptor.
  */
-void tuh_attach_cb (uint8_t daddr, tusb_desc_device_t const *desc_device) {
+void tuh_attach_cb(uint8_t daddr, tusb_desc_device_t const* desc_device)
+{
     uint16_t vid;
     uint16_t pid;
-    if (tuh_vid_pid_get(daddr, &vid, &pid)) {
+    if (tuh_vid_pid_get(daddr, &vid, &pid))
+    {
         printf("Attached DevAddr=%d VID=%04xh PID=%04xh\n", daddr, vid, pid);
-    } else {
+    }
+    else
+    {
         printf("Attached DevAddr=%d VID=(Unknown) PID=(Unknown)\n", daddr);
     }
 }
@@ -76,12 +84,16 @@ void tuh_attach_cb (uint8_t daddr, tusb_desc_device_t const *desc_device) {
  *       不明なデバイスでは通知されない。
  * @param daddr デバイスアドレス
  */
-void tuh_mount_cb(uint8_t daddr) {
+void tuh_mount_cb(uint8_t daddr)
+{
     uint16_t vid;
     uint16_t pid;
-    if (tuh_vid_pid_get(daddr, &vid, &pid)) {
+    if (tuh_vid_pid_get(daddr, &vid, &pid))
+    {
         printf("Mounted DevAddr=%d VID=%04xh PID=%04xh\n", daddr, vid, pid);
-    } else {
+    }
+    else
+    {
         printf("Mounted DevAddr=%d VID=(Unknown) PID=(Unknown)\n", daddr);
     }
 }
@@ -91,12 +103,16 @@ void tuh_mount_cb(uint8_t daddr) {
  * @note TinyUSBで有効化されていないデバイスでも、切断検知されたときに通知される。
  * @param daddr デバイスアドレス
  */
-void tuh_umount_cb(uint8_t daddr) {
+void tuh_umount_cb(uint8_t daddr)
+{
     uint16_t vid;
     uint16_t pid;
-    if (tuh_vid_pid_get(daddr, &vid, &pid)) {
+    if (tuh_vid_pid_get(daddr, &vid, &pid))
+    {
         printf("Detached DevAddr=%d VID=%04xh PID=%04xh\n", daddr, vid, pid);
-    } else {
+    }
+    else
+    {
         printf("Detached DevAddr=%d VID=(Unknown) PID=(Unknown)\n", daddr);
     }
 }
@@ -108,9 +124,10 @@ void tuh_umount_cb(uint8_t daddr) {
  * @param report レポートデータ
  * @param len レポートデータのサイズ
  */
-void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t idx, uint8_t const* report, uint16_t len) {
+void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t idx, uint8_t const* report, uint16_t len)
+{
     // do nothng.
-    return ;
+    return;
 }
 
 /**
@@ -118,9 +135,11 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t idx, uint8_t const* re
  * @param msec 待機する時間[ミリ秒]
  * @note R_BSP_SoftwareDelay()の方が良いかも。
  */
-void osal_task_delay(uint32_t msec) {
+void osal_task_delay(uint32_t msec)
+{
     volatile uint32_t begin = get_tick_count();
-    while ((get_tick_count() - begin) < msec) {
+    while ((get_tick_count() - begin) < msec)
+    {
         // do nothing.
     }
 }
@@ -131,7 +150,8 @@ void osal_task_delay(uint32_t msec) {
  * @param now Tick count of measuring time to.
  * @return Elapse milli seconds returned.
  */
-uint32_t osal_get_elapse(osal_tick_type_t from, osal_tick_type_t now) {
+uint32_t osal_get_elapse(osal_tick_type_t from, osal_tick_type_t now)
+{
     return (now - from);
 }
 /**

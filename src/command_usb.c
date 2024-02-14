@@ -18,6 +18,7 @@ static void cmd_usb_bus_state(int ac, char **av);
 static void cmd_usb_int_state(int ac, char **av);
 static void cmd_usb_list(int ac, char **av);
 static void cmd_usb_lang_id(int ac, char **av);
+static void cmd_usb_debug(int ac, char **av);
 static void cmd_usb_get_desc_device(int ac, char **av);
 static void cmd_usb_get_desc_string(int ac, char **av);
 static void print_string_descriptor(const tusb_desc_string_t *pdesc);
@@ -36,6 +37,7 @@ static const struct cmd_entry USBCommandEntries[] = {
     { "get-desc-device", "Get DEVICE descriptor.", cmd_usb_get_desc_device },
     { "get-desc-string", "Get STRING descriptor.", cmd_usb_get_desc_string },
     { "lang-id", "Set/get default language Id.", cmd_usb_lang_id },
+    { "debug", "Set/get debug mode.", cmd_usb_debug },
     { "list", "Print USB devices.", cmd_usb_list },
     { "help", "Print USB subcommand list.", cmd_usb_help }
 };
@@ -59,6 +61,10 @@ static union
  * Language ID (省略時デフォルト)
  */
 static uint16_t DefaultLangId = 0x0409;
+/**
+ * デバッグモードかどうか
+ */
+static bool IsDebug = false;
 
 /**
  * @brief usb コマンドを処理する
@@ -229,6 +235,22 @@ static void cmd_usb_lang_id(int ac, char **av)
     printf("%04xh\n", DefaultLangId);
     return ;
 }
+/**
+ * @brief usb debug コマンドを処理する
+ *        usb debug [mode#]
+ * @param ac 引数の数
+ * @param av 引数配列
+ */
+static void cmd_usb_debug(int ac, char **av)
+{
+    if (ac >= 3)
+    {
+        IsDebug = (strtol(av[2], NULL, 0) != 0);
+    }
+    printf("%d\n", (IsDebug ? 1 : 0));
+    return ;
+}
+
 
 /**
  * @brief usb get-desc コマンドを処理する。
@@ -255,7 +277,10 @@ static void cmd_usb_get_desc_device(int ac, char **av)
             return;
         }
         print_device_descriptor (&IoBuf.device_desc);
-        print_binary_array (IoBuf.ptr, len);
+        if (IsDebug)
+        {
+            print_binary_array (IoBuf.ptr, len);
+        }
     }
     else
     {
@@ -304,7 +329,10 @@ static void cmd_usb_get_desc_string(int ac, char **av)
 
         print_string_descriptor(&(IoBuf.string_desc));
         putchar('\n');
-        print_binary_array(IoBuf.ptr, IoBuf.string_desc.bLength);
+        if (IsDebug)
+        {
+            print_binary_array(IoBuf.ptr, IoBuf.string_desc.bLength);
+        }
     }
     else if (ac == 3)
     {
@@ -327,7 +355,10 @@ static void cmd_usb_get_desc_string(int ac, char **av)
             for (int i = 0; i < lang_count; i++) {
                 printf("  %04xh\n", IoBuf.string_desc.unicode_string[i]);
             }
-            print_binary_array(IoBuf.ptr, IoBuf.string_desc.bLength);
+            if (IsDebug)
+            {
+                print_binary_array(IoBuf.ptr, IoBuf.string_desc.bLength);
+            }
         }
         else
         {

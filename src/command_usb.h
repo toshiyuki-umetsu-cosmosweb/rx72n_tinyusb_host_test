@@ -6,7 +6,6 @@
 #ifndef COMMAND_USB_H_
 #define COMMAND_USB_H_
 
-void cmd_usb(int ac, char **av);
-
+void cmd_usb(int ac, char** av);
 
 #endif /* COMMAND_USB_H_ */

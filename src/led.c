@@ -10,7 +10,8 @@
  *
  * @param is_on 点灯させる場合にはtrue, 消灯させる場合にはfalse。
  */
-void led_set(bool is_on) {
+void led_set(bool is_on)
+{
     PORT4.PODR.BIT.B0 = (is_on) ? 0u : 1u; // Active Low
 }
 
