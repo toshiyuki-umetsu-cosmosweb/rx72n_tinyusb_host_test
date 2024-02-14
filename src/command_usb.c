@@ -302,6 +302,8 @@ static void cmd_usb_get_desc_string(int ac, char **av)
             return ;
         }
 
+        print_string_descriptor(&(IoBuf.string_desc));
+        putchar('\n');
         print_binary_array(IoBuf.ptr, IoBuf.string_desc.bLength);
     }
     else if (ac == 3)
@@ -320,8 +322,11 @@ static void cmd_usb_get_desc_string(int ac, char **av)
         }
 
         if (IoBuf.string_desc.bLength > 0) {
-            print_string_descriptor(&(IoBuf.string_desc));
-            putchar('\n');
+            int lang_count = (IoBuf.string_desc.bLength - 2) / 2;
+            printf("Supported lang Ids :\n");
+            for (int i = 0; i < lang_count; i++) {
+                printf("  %04xh\n", IoBuf.string_desc.unicode_string[i]);
+            }
             print_binary_array(IoBuf.ptr, IoBuf.string_desc.bLength);
         }
         else
@@ -363,6 +368,7 @@ static void print_string_descriptor(const tusb_desc_string_t *pdesc)
                     putchar(buf[j]);
                 }
             }
+            i += d;
         }
         else
         {
