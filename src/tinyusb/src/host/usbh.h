@@ -66,7 +66,9 @@ struct tuh_xfer_s
     tuh_xfer_cb_t complete_cb; // Xfer done callback.
                                // If using async I/O, set this address to valid function.
                                // If using sync I/O, set complete_cb to NULL.
-    uintptr_t user_data;
+    uintptr_t user_data;       // Asynchronous operation: Address to pass to complete_cb.
+                               // Synchronous operation:  Address to store transfer result.
+                               //                         If not need store result, specify NULL.
 
     // uint32_t timeout_ms;    // place holder, not supported yet
 };

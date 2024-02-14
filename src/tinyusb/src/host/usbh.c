@@ -213,8 +213,8 @@ static osal_mutex_t _usbh_mutex;
 // usbh_int_set is used as mutex in OS NONE config
 OSAL_QUEUE_DEF(usbh_int_set, _usbh_qdef, CFG_TUH_TASK_QUEUE_SZ, hcd_event_t);
 static osal_queue_t _usbh_q;
-OSAL_QUEUE_DEF(usbh_int_set, _usbh_enum_qdef, CFG_TUH_TASK_QUEUE_SZ, hcd_event_t);
-static osal_queue_t _usbh_enum_q;
+OSAL_QUEUE_DEF(usbh_int_set, _usbh_pending_qdef, CFG_TUH_TASK_QUEUE_SZ, hcd_event_t);
+static osal_queue_t _usbh_pending_q;
 
 CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN static uint8_t _usbh_ctrl_buf[CFG_TUH_ENUMERATION_BUFSIZE];
 
@@ -394,7 +394,9 @@ bool tuh_init(uint8_t controller_id)
 {
     // skip if already initialized
     if (tuh_inited())
+    {
         return true;
+    }
 
     TU_LOG_USBH("USBH init on controller %u\r\n", controller_id);
     TU_LOG_INT(CFG_TUH_LOG_LEVEL, sizeof(usbh_device_t));
@@ -408,8 +410,8 @@ bool tuh_init(uint8_t controller_id)
     _usbh_q = osal_queue_create(&_usbh_qdef);
     TU_ASSERT(_usbh_q != NULL);
 
-    _usbh_enum_q = osal_queue_create(&_usbh_enum_qdef);
-    TU_ASSERT(_usbh_enum_q != NULL);
+    _usbh_pending_q = osal_queue_create(&_usbh_pending_qdef);
+    TU_ASSERT(_usbh_pending_q != NULL);
 
 #if OSAL_MUTEX_REQUIRED
     // Init mutex
@@ -459,9 +461,9 @@ bool tuh_task_event_ready(void)
     if (!tuh_inited())
         return false;
 
-    return !osal_queue_empty(_usbh_q) || !osal_queue_empty(_usbh_enum_q);
+    return !osal_queue_empty(_usbh_q) || !osal_queue_empty(_usbh_pending_q);
 }
-
+static bool pop_event(hcd_event_t *pevent, uint32_t timeout_ms, bool in_isr);
 static bool proc_queue_event(hcd_event_t* pevent, bool in_isr);
 
 /* USB Host Driver task
@@ -496,19 +498,12 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr)
     while (1)
     {
         hcd_event_t event;
-        if (!osal_queue_receive(_usbh_q, &event, timeout_ms))
+        if (!pop_event(&event, timeout_ms, in_isr))
         {
-            if (_dev0.enumerating != 0)
-            {
-                return;
-            }
-            if (!osal_queue_receive(_usbh_enum_q, &event, timeout_ms))
-            {
-                return;
-            }
+            return ;
         }
 
-        if (proc_queue_event(&event, in_isr))
+        if (!proc_queue_event(&event, in_isr))
         {
             return;
         }
@@ -520,6 +515,25 @@ void tuh_task_ext(uint32_t timeout_ms, bool in_isr)
         }
 #endif
     }
+}
+
+/**
+ * @brief Pop event from queue(s)
+ * @param pevent Object to store event data.
+ * @param timeout_ms Timeout millis.
+ * @param in_isr Whether in ISR routine or not. If call in ISR, specify true.
+ * @return When got available event data, return true. Otherwise, return false.
+ */
+static bool pop_event(hcd_event_t *pevent, uint32_t timeout_ms, bool in_isr)
+{
+    if (_dev0.enumerating == 0)
+    {
+        if (osal_queue_receive(_usbh_pending_q, pevent, 0u))
+        {
+            return true;
+        }
+    }
+    return osal_queue_receive(_usbh_q, pevent, timeout_ms);
 }
 
 /**
@@ -540,7 +554,7 @@ static bool proc_queue_event(hcd_event_t* pevent, bool in_isr)
             TU_LOG_USBH("[%u:] USBH Defer Attach until current enumeration complete\r\n", event.rhport);
 
             bool is_empty = osal_queue_empty(_usbh_q);
-            queue_event(_usbh_enum_q, pevent, in_isr);
+            queue_event(_usbh_pending_q, pevent, in_isr);
 
             if (is_empty)
             {
@@ -557,6 +571,11 @@ static bool proc_queue_event(hcd_event_t* pevent, bool in_isr)
         break;
     }
     case HCD_EVENT_DEVICE_REMOVE: {
+        if (_dev0.enumerating)
+        {
+            queue_event(_usbh_pending_q, pevent, in_isr);
+            return false;
+        }
         TU_LOG_USBH("[%u:%u:%u] USBH DEVICE REMOVED\r\n", event.rhport, event.connection.hub_addr, event.connection.hub_port);
         process_removing_device(pevent->rhport, pevent->connection.hub_addr, pevent->connection.hub_port);
 
@@ -664,9 +683,12 @@ static void _control_blocking_complete_cb(tuh_xfer_t* xfer)
 
 // TODO timeout_ms is not supported yet
 /**
- * @brief Submit a control transfer
- * async: complete callback invoked when finished.
- * sync : blocking if complete callback is NULL.
+ * @brief Submit a control transfer.
+ *        When transfercallback function(xfer::complete_cb) is NULL,
+ *        this function operate as asynchronous.
+ *        The transfer callback function(xfer::complete_cb) is not NULL,
+ *        this function operate synchronous. When user data (xfer::user_data) is not NULL,
+ *        store transfer result to its address.
  * @param xfer Transfer request data.
  * @return On success, return true. If error occurred, return false.
  */
@@ -812,6 +834,7 @@ static bool usbh_control_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_
         switch (_ctrl_xfer.stage)
         {
         case CONTROL_STAGE_SETUP:
+        {
             if (request->wLength)
             {
                 // DATA stage: initial data toggle is always 1
@@ -819,8 +842,13 @@ static bool usbh_control_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_
                 TU_ASSERT(hcd_edpt_xfer(rhport, dev_addr, tu_edpt_addr(0, request->bmRequestType_bit.direction), _ctrl_xfer.buffer, request->wLength));
                 return true;
             }
-            TU_ATTR_FALLTHROUGH;
+            _ctrl_xfer.actual_len = (uint16_t)xferred_bytes;
 
+            // ACK stage: toggle is always 1
+            _set_control_xfer_stage(CONTROL_STAGE_ACK);
+            TU_ASSERT(hcd_edpt_xfer(rhport, dev_addr, tu_edpt_addr(0, 1 - request->bmRequestType_bit.direction), NULL, 0));
+            break;
+        }
         case CONTROL_STAGE_DATA:
             if (request->wLength)
             {
@@ -1079,18 +1107,23 @@ TU_ATTR_FAST_FUNC void hcd_event_handler(hcd_event_t const* event, bool in_isr)
     switch (event->event_id)
     {
     case HCD_EVENT_DEVICE_REMOVE:
+    {
         // FIXME device remove from a hub need an HCD API for hcd to free up endpoint
         // mark device as removing to prevent further xfer before the event is processed in usbh task
 
         // Check if dev0 is removed
-        if ((event->rhport == _dev0.rhport) && (event->connection.hub_addr == _dev0.hub_addr) && (event->connection.hub_port == _dev0.hub_port))
+        if ((event->rhport == _dev0.rhport)
+                && (event->connection.hub_addr == _dev0.hub_addr)
+                && (event->connection.hub_port == _dev0.hub_port))
         {
             _dev0.enumerating = 0;
         }
         break;
-
+    }
     default:
+    {
         break;
+    }
     }
 
     queue_event(_usbh_q, event, in_isr);
