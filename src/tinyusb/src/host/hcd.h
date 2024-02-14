@@ -32,7 +32,7 @@
 #include "common/tusb_fifo.h"
 
 #ifdef __cplusplus
- extern "C" {
+extern "C" {
 #endif
 
 //--------------------------------------------------------------------+
@@ -42,7 +42,7 @@
 // Max number of endpoints pair per device
 // TODO optimize memory usage
 #ifndef CFG_TUH_ENDPOINT_MAX
-  #define CFG_TUH_ENDPOINT_MAX   16
+#define CFG_TUH_ENDPOINT_MAX 16
 //  #ifdef TUP_HCD_ENDPOINT_MAX
 //    #define CFG_TUH_ENDPPOINT_MAX   TUP_HCD_ENDPOINT_MAX
 //  #else
@@ -55,53 +55,56 @@
 //--------------------------------------------------------------------+
 typedef enum
 {
-  HCD_EVENT_DEVICE_ATTACH,
-  HCD_EVENT_DEVICE_REMOVE,
-  HCD_EVENT_XFER_COMPLETE,
+    HCD_EVENT_DEVICE_ATTACH,
+    HCD_EVENT_DEVICE_REMOVE,
+    HCD_EVENT_XFER_COMPLETE,
 
-  // Not an HCD event, just a convenient way to defer ISR function
-  USBH_EVENT_FUNC_CALL,
+    // Not an HCD event, just a convenient way to defer ISR function
+    USBH_EVENT_FUNC_CALL,
 
-  HCD_EVENT_COUNT
+    HCD_EVENT_COUNT
 } hcd_eventid_t;
 
 typedef struct
 {
-  uint8_t rhport;
-  uint8_t event_id;
-  uint8_t dev_addr;
+    uint8_t rhport;
+    uint8_t event_id;
+    uint8_t dev_addr;
 
-  union
-  {
-    // Attach, Remove
-    struct {
-      uint8_t hub_addr;
-      uint8_t hub_port;
-      uint8_t speed;
-    } connection;
+    union
+    {
+        // Attach, Remove
+        struct
+        {
+            uint8_t hub_addr;
+            uint8_t hub_port;
+            uint8_t speed;
+        } connection;
 
-    // XFER_COMPLETE
-    struct {
-      uint8_t ep_addr;
-      uint8_t result;
-      uint32_t len;
-    } xfer_complete;
+        // XFER_COMPLETE
+        struct
+        {
+            uint8_t ep_addr;
+            uint8_t result;
+            uint32_t len;
+        } xfer_complete;
 
-    // FUNC_CALL
-    struct {
-      void (*func) (void*);
-      void* param;
-    }func_call;
-  };
+        // FUNC_CALL
+        struct
+        {
+            void (*func)(void*);
+            void* param;
+        } func_call;
+    };
 
 } hcd_event_t;
 
 typedef struct
 {
-  uint8_t rhport;
-  uint8_t hub_addr;
-  uint8_t hub_port;
-  uint8_t speed;
+    uint8_t rhport;
+    uint8_t hub_addr;
+    uint8_t hub_port;
+    uint8_t speed;
 } hcd_devtree_info_t;
 
 //--------------------------------------------------------------------+
@@ -134,7 +137,7 @@ bool hcd_init(uint8_t rhport);
 void hcd_int_handler(uint8_t rhport, bool in_isr);
 
 // Enable USB interrupt
-void hcd_int_enable (uint8_t rhport);
+void hcd_int_enable(uint8_t rhport);
 
 // Disable USB interrupt
 void hcd_int_disable(uint8_t rhport);
@@ -167,10 +170,10 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr);
 //--------------------------------------------------------------------+
 
 // Open an endpoint
-bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t const * ep_desc);
+bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t const* ep_desc);
 
 // Submit a transfer, when complete hcd_event_xfer_complete() must be invoked
-bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buffer, uint16_t buflen);
+bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t* buffer, uint16_t buflen);
 
 // Abort a queued transfer. Note: it can only abort transfer that has not been started
 // Return true if a queued transfer is aborted, false if there is no transfer to abort
@@ -197,46 +200,46 @@ extern void hcd_devtree_get_info(uint8_t dev_addr, hcd_devtree_info_t* devtree_i
 extern void hcd_event_handler(hcd_event_t const* event, bool in_isr);
 
 // Helper to send device attach event
-TU_ATTR_ALWAYS_INLINE static inline
-void hcd_event_device_attach(uint8_t rhport, bool in_isr) {
-  hcd_event_t event;
-  event.rhport              = rhport;
-  event.event_id            = HCD_EVENT_DEVICE_ATTACH;
-  event.connection.hub_addr = 0;
-  event.connection.hub_port = 0;
+TU_ATTR_ALWAYS_INLINE static inline void hcd_event_device_attach(uint8_t rhport, bool in_isr)
+{
+    hcd_event_t event;
+    event.rhport = rhport;
+    event.event_id = HCD_EVENT_DEVICE_ATTACH;
+    event.connection.hub_addr = 0;
+    event.connection.hub_port = 0;
 
-  hcd_event_handler(&event, in_isr);
+    hcd_event_handler(&event, in_isr);
 }
 
 // Helper to send device removal event
-TU_ATTR_ALWAYS_INLINE static inline
-void hcd_event_device_remove(uint8_t rhport, bool in_isr) {
-  hcd_event_t event;
-  event.rhport              = rhport;
-  event.event_id            = HCD_EVENT_DEVICE_REMOVE;
-  event.connection.hub_addr = 0;
-  event.connection.hub_port = 0;
+TU_ATTR_ALWAYS_INLINE static inline void hcd_event_device_remove(uint8_t rhport, bool in_isr)
+{
+    hcd_event_t event;
+    event.rhport = rhport;
+    event.event_id = HCD_EVENT_DEVICE_REMOVE;
+    event.connection.hub_addr = 0;
+    event.connection.hub_port = 0;
 
-  hcd_event_handler(&event, in_isr);
+    hcd_event_handler(&event, in_isr);
 }
 
 // Helper to send USB transfer event
-TU_ATTR_ALWAYS_INLINE static inline
-void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, uint32_t xferred_bytes, xfer_result_t result, bool in_isr) {
-  hcd_event_t event = {
-    .rhport   = 0, // TODO correct rhport
-    .event_id = HCD_EVENT_XFER_COMPLETE,
-    .dev_addr = dev_addr,
-  };
-  event.xfer_complete.ep_addr = ep_addr;
-  event.xfer_complete.result = result;
-  event.xfer_complete.len = xferred_bytes;
+TU_ATTR_ALWAYS_INLINE static inline void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, uint32_t xferred_bytes, xfer_result_t result, bool in_isr)
+{
+    hcd_event_t event = {
+        .rhport = 0, // TODO correct rhport
+        .event_id = HCD_EVENT_XFER_COMPLETE,
+        .dev_addr = dev_addr,
+    };
+    event.xfer_complete.ep_addr = ep_addr;
+    event.xfer_complete.result = result;
+    event.xfer_complete.len = xferred_bytes;
 
-  hcd_event_handler(&event, in_isr);
+    hcd_event_handler(&event, in_isr);
 }
 
 #ifdef __cplusplus
- }
+}
 #endif
 
 #endif /* _TUSB_HCD_H_ */
