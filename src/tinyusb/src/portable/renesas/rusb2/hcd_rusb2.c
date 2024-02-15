@@ -561,13 +561,17 @@ static void wait_bussignal_stable(rusb2_reg_t* rusb)
     bus_states[0] = rusb->SYSSTS0_b.LNST;
 
     for (volatile int i = 0; i < 100u; i++)
+    {
         ; // Delay.
+    }
 
     bus_states[1] = rusb->SYSSTS0_b.LNST;
     while (1)
     {
         for (volatile int i = 0; i < 100u; i++)
+        {
             ; // Delay.
+        }
 
         bus_states[2] = rusb->SYSSTS0_b.LNST;
         if ((bus_states[0] == bus_states[1]) && (bus_states[0] == bus_states[2]))
@@ -582,9 +586,18 @@ static void wait_bussignal_stable(rusb2_reg_t* rusb)
     return;
 }
 
+/**
+ * @brief Initialize Host card driver.
+ * @param rhport Port number.
+ * @return On success, return true. Otherwise, return false.
+ */
 bool hcd_init(uint8_t rhport)
 {
     rusb2_reg_t* rusb = RUSB2_REG(rhport);
+    if (rusb == NULL)
+    {
+        return false;
+    }
     rusb2_module_start(rhport, true);
 
 #ifdef RUSB2_SUPPORT_HIGHSPEED
@@ -764,6 +777,14 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr)
 /*--------------------------------------------------------------------+
  * Endpoints API
  *--------------------------------------------------------------------+*/
+/**
+ * @brief Submit a special transfer to send 8-byte Setup Packet. (Asynchronous)
+ *        When complete transfer, hcd_event_xfer_complete() is invoked.
+ * @param rhport Port number
+ * @param dev_addr Device address
+ * @param setup_packet Setup packet data.
+ * @return On success, return true. Otherwise, return false.
+ */
 bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet[8])
 {
     TU_ASSERT(dev_addr < 6); /* USBa can only handle addresses from 0 to 5. */
@@ -771,7 +792,7 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
     rusb2_reg_t* rusb = RUSB2_REG(rhport);
     TU_LOG(TU_RUSB2_HCD_DBG, "S %d %x\r\n", dev_addr, rusb->DCPCTR);
 
-    TU_ASSERT(0 == rusb->DCPCTR_b.SUREQ);
+    TU_ASSERT(0 == rusb->DCPCTR_b.SUREQ); // When busy, return false.
 
     rusb->DCPCTR = RUSB2_PIPE_CTR_PID_NAK;
 
@@ -781,7 +802,9 @@ bool hcd_setup_send(uint8_t rhport, uint8_t dev_addr, uint8_t const setup_packet
     _hcd.pipe[0].dev = dev_addr;
 
     while (rusb->DCPCTR_b.PBUSY)
+    {
         ;
+    }
     rusb->DCPMAXP = (dev_addr << 12) | _hcd.ctl_mps[dev_addr];
 
     /* Set direction in advance for DATA stage */

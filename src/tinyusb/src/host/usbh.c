@@ -835,14 +835,19 @@ static void _xfer_complete(uint8_t daddr, xfer_result_t result)
 
     // duplicate xfer since user can execute control transfer within callback
     tusb_control_request_t const request = _ctrl_xfer.request;
-    tuh_xfer_t xfer_temp = {.daddr = daddr,
-                            .ep_addr = 0,
-                            .result = result,
-                            .setup = &request,
-                            .actual_len = (uint32_t)_ctrl_xfer.actual_len,
-                            .buffer = _ctrl_xfer.buffer,
-                            .complete_cb = _ctrl_xfer.complete_cb,
-                            .user_data = _ctrl_xfer.user_data};
+
+    //@formatter:off
+    tuh_xfer_t xfer_temp = {
+        .daddr = daddr,
+        .ep_addr = 0,
+        .result = result,
+        .setup = &request,
+        .actual_len = (uint32_t)_ctrl_xfer.actual_len,
+        .buffer = _ctrl_xfer.buffer,
+        .complete_cb = _ctrl_xfer.complete_cb,
+        .user_data = _ctrl_xfer.user_data
+    };
+    //@formatter:on
 
     _set_control_xfer_stage(CONTROL_STAGE_IDLE);
 
@@ -852,6 +857,14 @@ static void _xfer_complete(uint8_t daddr, xfer_result_t result)
     }
 }
 
+/**
+ * @brief Callback function when CONTROL transfer done.
+ * @param dev_addr device address.
+ * @param ep_addr Endpoint address
+ * @param result Transfer result.
+ * @param xferred_bytes Transferred length.
+ * @return On success, return true. Otherwise, return false.
+ */
 static bool usbh_control_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes)
 {
     (void)ep_addr;
@@ -889,6 +902,7 @@ static bool usbh_control_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_
             break;
         }
         case CONTROL_STAGE_DATA:
+        {
             if (request->wLength)
             {
                 TU_LOG_USBH("[%u:%u] Control data:\r\n", rhport, dev_addr);
@@ -901,13 +915,16 @@ static bool usbh_control_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_
             _set_control_xfer_stage(CONTROL_STAGE_ACK);
             TU_ASSERT(hcd_edpt_xfer(rhport, dev_addr, tu_edpt_addr(0, 1 - request->bmRequestType_bit.direction), NULL, 0));
             break;
-
+        }
         case CONTROL_STAGE_ACK:
+        {
             _xfer_complete(dev_addr, result);
             break;
-
+        }
         default:
+        {
             return false;
+        }
         }
     }
 

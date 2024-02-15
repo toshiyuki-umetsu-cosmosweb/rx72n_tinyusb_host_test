@@ -46,7 +46,14 @@ extern "C" {
 
 TU_ATTR_ALWAYS_INLINE static inline rusb2_reg_t* RUSB2_REG(uint8_t rhport)
 {
-    return (rusb2_reg_t*)RUSB2_REG_BASE;
+    if (rhport == 0)
+    {
+        return (rusb2_reg_t*)RUSB2_REG_BASE;
+    }
+    else
+    {
+        return NULL;
+    }
 }
 
 #define rusb2_is_highspeed_rhport(_p) (false)

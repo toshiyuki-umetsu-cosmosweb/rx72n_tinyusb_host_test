@@ -226,11 +226,13 @@ TU_ATTR_ALWAYS_INLINE static inline void hcd_event_device_remove(uint8_t rhport,
 // Helper to send USB transfer event
 TU_ATTR_ALWAYS_INLINE static inline void hcd_event_xfer_complete(uint8_t dev_addr, uint8_t ep_addr, uint32_t xferred_bytes, xfer_result_t result, bool in_isr)
 {
+    //@formatter:off
     hcd_event_t event = {
         .rhport = 0, // TODO correct rhport
         .event_id = HCD_EVENT_XFER_COMPLETE,
         .dev_addr = dev_addr,
     };
+    //@formatter:on
     event.xfer_complete.ep_addr = ep_addr;
     event.xfer_complete.result = result;
     event.xfer_complete.len = xferred_bytes;
