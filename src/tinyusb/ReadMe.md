@@ -114,6 +114,11 @@ void osal_task_delay(uint32_t msec) {
 }
 ~~~
 
+## TinyUSB メモ
+
+* tuh_task()内の処理にて、あちこちに待ち処理が入っています。
+  tuh_task()のループで内蔵WDTの更新などをするのは止めた方が良いです。
+
 ## ちょっとわかりづらかったマクロ関数
 
 ### TU_VERIFY(__VA_ARGS__)
