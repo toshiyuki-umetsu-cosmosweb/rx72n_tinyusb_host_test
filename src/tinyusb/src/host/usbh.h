@@ -201,11 +201,25 @@ bool tuh_edpt_open(uint8_t daddr, tusb_desc_endpoint_t const* desc_ep);
 // Return true if a queued transfer is aborted, false if there is no transfer to abort
 bool tuh_edpt_abort_xfer(uint8_t daddr, uint8_t ep_addr);
 
+// Get Configuration (control transfer)
+// config_num = 0 will un-configure device. Note: config_num = config_descriptor_index + 1
+// true on success, false if there is on-going control transfer or incorrect parameters
+// if complete_cb == NULL i.e blocking, user_data should be pointed to xfer_reuslt_t*
+bool tuh_configuration_get(uint8_t daddr, uint8_t *config_num, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+
+// Sync (blocking) version of tuh_configuration_get()
+// return transfer result.
+uint8_t tuh_configuration_get_sync(uint8_t daddr, uint8_t *config_num);
+
 // Set Configuration (control transfer)
 // config_num = 0 will un-configure device. Note: config_num = config_descriptor_index + 1
 // true on success, false if there is on-going control transfer or incorrect parameters
 // if complete_cb == NULL i.e blocking, user_data should be pointed to xfer_reuslt_t*
 bool tuh_configuration_set(uint8_t daddr, uint8_t config_num, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+
+// Sync (blocking) version of tuh_configuration_set().
+// return transfer result.
+uint8_t tuh_configuration_set_sync(uint8_t daddr, uint8_t config_num);
 
 // Set Interface (control transfer)
 // true on success, false if there is on-going control transfer or incorrect parameters

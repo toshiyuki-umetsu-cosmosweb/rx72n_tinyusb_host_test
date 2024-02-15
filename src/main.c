@@ -54,5 +54,12 @@ static void init_peripherals(void) {
     return ;
 }
 
+pid_t getpid(void) {
+    return 1;
+}
+
+int kill(pid_t pid, int nsig) {
+    return 0;
+}
 
 

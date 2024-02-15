@@ -1370,6 +1370,64 @@ bool tuh_descriptor_get_hid_report(uint8_t daddr, uint8_t itf_num, uint8_t desc_
 }
 
 /**
+ * @brief Get Configuration (Synchronous/Asynchronous)
+ * @param daddr Device address.
+ * @param config_num Address to store configuration number.
+ * @param complete_cb Callback function when transfer done.
+ *                    When complete_cb is NULL, this function operate synchronous.
+ *                    When complete_cb is not NULL, this function operate asynchronous.
+ * @param user_data Synchronous: Address to store transfer result. If not need result, specify NULL.
+ *                  Asynchronous: A data to pass to complete_cb.
+ * @return On success, return true. Otherwise, return false.
+ *         When synchronous operation, return true with transfer failed too.
+ *         So caller process must check transfer result.
+ */
+bool tuh_configuration_get(uint8_t daddr, uint8_t *config_num, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
+{
+    TU_VERIFY(config_num != NULL);
+    TU_LOG_USBH("Get Configuration\r\n");
+
+    //@formatter:off
+    tusb_control_request_t const request = {
+        .bmRequestType_bit = {
+            .recipient = TUSB_REQ_RCPT_DEVICE,
+            .type = TUSB_REQ_TYPE_STANDARD,
+            .direction = TUSB_DIR_IN
+        },
+        .bRequest = TUSB_REQ_GET_CONFIGURATION,
+        .wValue = 0,
+        .wIndex = 0,
+        .wLength = 1
+    };
+
+    tuh_xfer_t xfer = {
+        .daddr = daddr,
+        .ep_addr = 0,
+        .setup = &request,
+        .buffer = config_num,
+        .complete_cb = complete_cb,
+        .user_data = user_data
+    };
+    //@formatter:on
+
+    return tuh_control_xfer(&xfer);
+}
+
+/**
+ * @brief Get Configuration.
+ *        This function blocks caller until transfer done.
+ * @param daddr Device address.
+ * @param config_num Address to store configuration number.
+ * @return Transfer status returned.(See xfer_status_t)
+ */
+uint8_t tuh_configuration_get_sync(uint8_t daddr, uint8_t *config_num)
+{
+    xfer_result_t xfer_result;
+    TU_VERIFY(tuh_configuration_get(daddr, config_num, NULL, (uintptr_t)(&xfer_result)), XFER_RESULT_TIMEOUT);
+    return (uint8_t)(xfer_result);
+}
+
+/**
  * @brief Set Configuration (Synchronous/Asynchronous)
  * @param daddr Device address.
  * @param config_num Configuration number.
@@ -1410,6 +1468,20 @@ bool tuh_configuration_set(uint8_t daddr, uint8_t config_num, tuh_xfer_cb_t comp
     //@formatter:on
 
     return tuh_control_xfer(&xfer);
+}
+
+/**
+ * @brief Set Configuration.
+ *        This function blocks caller until transfer done.
+ * @param daddr Device address.
+ * @param config_num Configuration number.
+ * @return Transfer status returned.(See xfer_status_t)
+ */
+uint8_t tuh_configuration_set_sync(uint8_t daddr, uint8_t config_num)
+{
+    xfer_result_t xfer_result;
+    TU_VERIFY(tuh_configuration_set(daddr, config_num, NULL, (uintptr_t)(&xfer_result)), XFER_RESULT_TIMEOUT);
+    return (uint8_t)(xfer_result);
 }
 
 /**

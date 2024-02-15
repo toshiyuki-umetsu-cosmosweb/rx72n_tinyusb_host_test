@@ -21,6 +21,8 @@ static void cmd_usb_lang_id(int ac, char **av);
 static void cmd_usb_debug(int ac, char **av);
 static void cmd_usb_get_desc_device(int ac, char **av);
 static void cmd_usb_get_desc_string(int ac, char **av);
+static void cmd_usb_config(int ac, char **av);
+static void cmd_usb_info(int ac, char **av);
 static void print_string_descriptor(const tusb_desc_string_t *pdesc);
 static int utf16_to_utf32(const uint16_t *p, uint32_t *pcode_point);
 static int utf32_to_utf8(uint32_t code_point, uint8_t *pbuf);
@@ -32,13 +34,15 @@ static void print_binary_array(const uint8_t *buf, uint16_t len);
  */
 //@formatter:off
 static const struct cmd_entry USBCommandEntries[] = {
+    { "list", "Print USB devices.", cmd_usb_list },
+    { "info", "Print USB device information.", cmd_usb_info },
+    { "config", "Set/get USB device configuration.", cmd_usb_config },
     { "bus-state", "Print USB bus state.", cmd_usb_bus_state },
     { "int-state", "Print USB int state.", cmd_usb_int_state },
     { "get-desc-device", "Get DEVICE descriptor.", cmd_usb_get_desc_device },
     { "get-desc-string", "Get STRING descriptor.", cmd_usb_get_desc_string },
     { "lang-id", "Set/get default language Id.", cmd_usb_lang_id },
     { "debug", "Set/get debug mode.", cmd_usb_debug },
-    { "list", "Print USB devices.", cmd_usb_list },
     { "help", "Print USB subcommand list.", cmd_usb_help }
 };
 //@formatter:on
@@ -203,11 +207,11 @@ static void cmd_usb_int_state(int ac, char **av)
  */
 static void cmd_usb_list(int ac, char **av)
 {
-    for (uint8_t dev_addr = 0; dev_addr < 0xFFu; dev_addr++)
+    for (int dev_addr = 0; dev_addr <= 0xFF; dev_addr++)
     {
         uint16_t vid;
         uint16_t pid;
-        if (tuh_vid_pid_get (dev_addr, &vid, &pid))
+        if (tuh_vid_pid_get ((uint8_t)(dev_addr), &vid, &pid))
         {
             printf ("DEV_ADDR=%d VID=%04xh PID=%04xh\n", dev_addr, vid, pid);
         }
@@ -336,6 +340,8 @@ static void cmd_usb_get_desc_string(int ac, char **av)
     }
     else if (ac == 3)
     {
+        // usb get-desc-string daddr#
+        // Getting supported language ids.
         int daddr = strtol (av[2], NULL, 0);
         if ((daddr < 0) || (daddr > 255))
         {
@@ -351,7 +357,7 @@ static void cmd_usb_get_desc_string(int ac, char **av)
 
         if (IoBuf.string_desc.bLength > 0) {
             int lang_count = (IoBuf.string_desc.bLength - 2) / 2;
-            printf("Supported lang Ids :\n");
+            printf("Supported language ids :\n");
             for (int i = 0; i < lang_count; i++) {
                 printf("  %04xh\n", IoBuf.string_desc.unicode_string[i]);
             }
@@ -374,6 +380,122 @@ static void cmd_usb_get_desc_string(int ac, char **av)
 
     return;
 }
+
+/**
+ * @brief usb config コマンドを処理する
+ *        usb config daddr# config#
+ *        usb config daddr#
+ * @param ac 引数の数
+ * @param av 引数配列
+ */
+static void cmd_usb_config(int ac, char **av)
+{
+    if (ac >= 4)
+    {
+        int daddr = strtol(av[2], NULL, 0);
+        int config_num = strtol(av[3], NULL, 0);
+        if ((daddr < 0) || (daddr > 255))
+        {
+            printf("Invalid device address.\n");
+            return ;
+        }
+        if ((config_num < 0) || (config_num > 255))
+        {
+            printf("Invalid configuration number.\n");
+            return ;
+        }
+
+        if (tuh_configuration_set_sync(daddr, (uint8_t)(config_num)) != XFER_RESULT_SUCCESS)
+        {
+            printf("Bus request failure.\n");
+            return ;
+        }
+        uint8_t actual_config_num;
+        if (tuh_configuration_get_sync(daddr, &actual_config_num) != XFER_RESULT_SUCCESS)
+        {
+            return ;
+        }
+        printf("Set configuration to %d. (Request=%d)\n", actual_config_num, config_num);
+        return ;
+    }
+    if (ac == 3)
+    {
+        int daddr = strtol(av[2], NULL, 0);
+        if ((daddr < 0) || (daddr > 255))
+        {
+            printf("Invalid device address.\n");
+            return ;
+        }
+
+        uint8_t config_num;
+        if (tuh_configuration_get_sync((uint8_t)(daddr), &config_num) != XFER_RESULT_SUCCESS)
+        {
+            printf("Bus request failure.\n");
+            return ;
+        }
+
+        printf("%d\n", config_num);
+        return ;
+    }
+    else
+    {
+        printf("usage:\n");
+        printf("  usb config daddr# config#\n");
+        printf("  usb config daddr#\n");
+        return ;
+    }
+}
+
+
+/**
+ * @brief usb info コマンドを処理する。
+ *        usb info daddr#
+ * @param ac 引数の数
+ * @param av 引数配列
+ */
+static void cmd_usb_info(int ac, char **av)
+{
+    if (ac < 3)
+    {
+        printf("usage:\n");
+        printf("  usb info daddr#\n");
+        return ;
+    }
+
+    int daddr = strtol(av[2], NULL, 0);
+    if ((daddr < 0) || (daddr > 255))
+    {
+        printf("Invalid device address.\n");
+        return ;
+    }
+
+    tusb_desc_device_t device_desc;
+
+    if (tuh_descriptor_get_device_sync((uint8_t)(daddr), &device_desc, sizeof(device_desc)) != XFER_RESULT_SUCCESS)
+    {
+        printf("Could not get device descriptor.\n");
+        return ;
+    }
+    printf("DeviceAddr = %xh\n", daddr);
+    printf("USBVersion = %xh\n", device_desc.bcdUSB);
+    printf("VendorId = %04xh\n", device_desc.idVendor);
+    printf("ProductId = %04xh\n", device_desc.idProduct);
+    printf("Device : Class=%xh SubClass=%xh Protocol=%xh\n",
+           device_desc.bDeviceClass, device_desc.bDeviceSubClass, device_desc.bDeviceProtocol);
+    printf("          See https://www.usb.org/defined-class-codes \n");
+    uint8_t config_num;
+    if (tuh_configuration_get_sync((uint8_t)(daddr), &config_num) == XFER_RESULT_SUCCESS)
+    {
+        printf("Configuration = %d/%d\n", config_num, device_desc.bNumConfigurations);
+    }
+
+
+}
+
+
+
+
+
 /**
  * @brief String Descriptorを出力する
  * @param pdesc String Descriptorデータ
