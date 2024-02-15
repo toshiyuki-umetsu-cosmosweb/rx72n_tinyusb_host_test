@@ -130,27 +130,63 @@ typedef struct
 #define DRIVER_NAME(_name)
 #endif
 
+//@formatter:off
 static usbh_class_driver_t const usbh_class_drivers[] = {
 #if CFG_TUH_CDC
-    {DRIVER_NAME("CDC").init = cdch_init, .open = cdch_open, .set_config = cdch_set_config, .xfer_cb = cdch_xfer_cb, .close = cdch_close},
+    {
+        DRIVER_NAME("CDC")
+        .init = cdch_init,
+        .open = cdch_open,
+        .set_config = cdch_set_config,
+        .xfer_cb = cdch_xfer_cb,
+        .close = cdch_close
+    },
 #endif
 
 #if CFG_TUH_MSC
-    {DRIVER_NAME("MSC").init = msch_init, .open = msch_open, .set_config = msch_set_config, .xfer_cb = msch_xfer_cb, .close = msch_close},
+    {
+        DRIVER_NAME("MSC")
+        .init = msch_init,
+        .open = msch_open,
+        .set_config = msch_set_config,
+        .xfer_cb = msch_xfer_cb,
+        .close = msch_close
+    },
 #endif
 
 #if CFG_TUH_HID
-    {DRIVER_NAME("HID").init = hidh_init, .open = hidh_open, .set_config = hidh_set_config, .xfer_cb = hidh_xfer_cb, .close = hidh_close},
+    {
+        DRIVER_NAME("HID")
+        .init = hidh_init,
+        .open = hidh_open,
+        .set_config = hidh_set_config,
+        .xfer_cb = hidh_xfer_cb,
+        .close = hidh_close
+    },
 #endif
 
 #if CFG_TUH_HUB
-    {DRIVER_NAME("HUB").init = hub_init, .open = hub_open, .set_config = hub_set_config, .xfer_cb = hub_xfer_cb, .close = hub_close},
+    {
+        DRIVER_NAME("HUB")
+        .init = hub_init,
+        .open = hub_open,
+        .set_config = hub_set_config,
+        .xfer_cb = hub_xfer_cb,
+        .close = hub_close
+    },
 #endif
 
 #if CFG_TUH_VENDOR
-    {DRIVER_NAME("VENDOR").init = cush_init, .open = cush_open_subtask, .xfer_cb = cush_isr, .close = cush_close}
+    {
+        DRIVER_NAME("VENDOR")
+        .init = cush_init,
+        .open = cush_open_subtask,
+        .xfer_cb = cush_isr,
+        .close = cush_close
+    }
 #endif
 };
+//@formatter:on
 
 enum
 {
@@ -188,7 +224,9 @@ static inline usbh_class_driver_t const* get_driver(uint8_t drv_id)
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
 
-// sum of end device + hub
+/**
+ * @brief sum of end device + hub
+ */
 #define TOTAL_DEVICES (CFG_TUH_DEVICE_MAX + CFG_TUH_HUB)
 
 static uint8_t _usbh_controller = TUSB_INDEX_INVALID_8;
@@ -690,6 +728,7 @@ static void _control_blocking_complete_cb(tuh_xfer_t* xfer)
  *        this function operate synchronous. When user data (xfer::user_data) is not NULL,
  *        store transfer result to its address.
  * @param xfer Transfer request data.
+ *             Needs field are copied to static area. Threfore you can use stack ram.
  * @return On success, return true. If error occurred, return false.
  */
 bool tuh_control_xfer(tuh_xfer_t* xfer)
@@ -1162,6 +1201,22 @@ bool tuh_descriptor_get_device(uint8_t daddr, void* buffer, uint16_t len, tuh_xf
     return tuh_descriptor_get(daddr, TUSB_DESC_DEVICE, 0, buffer, len, complete_cb, user_data);
 }
 
+/**
+ * @brief Getting CONFIGURATION descriptor. (Synchronous / Asynchronous)
+ *
+ * @param daddr Device address.
+ * @param index Index number.
+ * @param buffer Buffer to store data.
+ * @param len Size of buffer.
+ * @param complete_cb Callback function when transfer done.
+ *                    When complete_cb is NULL, this function operate synchronous.
+ *                    When complete_cb is not NULL, this function operate asynchronous.
+ * @param user_data Synchronous: Address to store transfer result. If not need result, specify NULL.
+ *                  Asynchronous: A data to pass to complete_cb.
+ * @return On success, return true. Otherwise, return false.
+ *         When synchronous operation, return true with transfer failed too.
+ *         So caller process must check transfer result.
+ */
 bool tuh_descriptor_get_configuration(uint8_t daddr, uint8_t index, void* buffer, uint16_t len, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
     return tuh_descriptor_get(daddr, TUSB_DESC_CONFIGURATION, index, buffer, len, complete_cb, user_data);
@@ -1169,12 +1224,45 @@ bool tuh_descriptor_get_configuration(uint8_t daddr, uint8_t index, void* buffer
 
 //------------- String Descriptor -------------//
 
+/**
+ * @brief Getting specified string descriptor. (Synchronous/Asynchronous)
+ * @param daddr Device address.
+ * @param index Index number of string descriptor.
+ * @param language_id Language Id.
+ * @param buffer Buffer to store string descriptor.
+ * @param len Length of buffer.
+ * @param complete_cb Callback function when transfer done.
+ *                    When complete_cb is NULL, this function operate synchronous.
+ *                    When complete_cb is not NULL, this function operate asynchronous.
+ * @param user_data Synchronous: Address to store transfer result. If not need result, specify NULL.
+ *                  Asynchronous: A data to pass to complete_cb.
+ * @return On success, return true. Otherwise, return false.
+ *         When synchronous operation, return true with transfer failed too.
+ *         So caller process must check transfer result.
+ */
 bool tuh_descriptor_get_string(uint8_t daddr, uint8_t index, uint16_t language_id, void* buffer, uint16_t len, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
     return _get_descriptor(daddr, TUSB_DESC_STRING, index, language_id, buffer, len, complete_cb, user_data);
 }
 
-// Get manufacturer string descriptor
+//
+/**
+ * @brief Getting manufacturer string descriptor.  (Synchronous/Asynchronous)
+ *        This function operate same to call tuh_descriptor_get_string() with passing iManufacturer.
+ * @param daddr Device address
+ * @param language_id Language Id.
+ * @param buffer Buffer to store string descriptor.
+ * @param len Length of buffer.
+ * @param complete_cb Callback function when transfer done.
+ *                    When complete_cb is NULL, this function operate synchronous.
+ *                    When complete_cb is not NULL, this function operate asynchronous.
+ * @param user_data Synchronous: Address to store transfer result. If not need result, specify NULL.
+ *                  Asynchronous: A data to pass to complete_cb.
+ * @return On success, return true. Otherwise, return false.
+ *         When synchronous operation, return true with transfer failed too.
+ *         So caller process must check transfer result.
+ *         If iManufacturer is 0, this function return false.
+ */
 bool tuh_descriptor_get_manufacturer_string(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
     usbh_device_t const* dev = get_device(daddr);
@@ -1182,7 +1270,24 @@ bool tuh_descriptor_get_manufacturer_string(uint8_t daddr, uint16_t language_id,
     return tuh_descriptor_get_string(daddr, dev->i_manufacturer, language_id, buffer, len, complete_cb, user_data);
 }
 
-// Get product string descriptor
+
+/**
+ * @brief Getting product string descriptor.  (Synchronous/Asynchronous)
+ *        This function operate same to call tuh_descriptor_get_string() with passing iProduct.
+ * @param daddr Device address
+ * @param language_id Language Id.
+ * @param buffer Buffer to store string descriptor.
+ * @param len Length of buffer.
+ * @param complete_cb Callback function when transfer done.
+ *                    When complete_cb is NULL, this function operate synchronous.
+ *                    When complete_cb is not NULL, this function operate asynchronous.
+ * @param user_data Synchronous: Address to store transfer result. If not need result, specify NULL.
+ *                  Asynchronous: A data to pass to complete_cb.
+ * @return On success, return true. Otherwise, return false.
+ *         When synchronous operation, return true with transfer failed too.
+ *         So caller process must check transfer result.
+ *         If iProduct is 0, this function return false.
+ */
 bool tuh_descriptor_get_product_string(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
     usbh_device_t const* dev = get_device(daddr);
@@ -1190,7 +1295,23 @@ bool tuh_descriptor_get_product_string(uint8_t daddr, uint16_t language_id, void
     return tuh_descriptor_get_string(daddr, dev->i_product, language_id, buffer, len, complete_cb, user_data);
 }
 
-// Get serial string descriptor
+/**
+ * @brief Getting serial string descriptor. (Synchronous/Asynchronous)
+ *        This function operate same to call tuh_descriptor_get_string() with passing iSerialNumber.
+ * @param daddr Device address.
+ * @param language_id Language Id.
+ * @param buffer Buffer to store string descriptor.
+ * @param len Length of buffer.
+ * @param complete_cb Callback function when transfer done.
+ *                    When complete_cb is NULL, this function operate synchronous.
+ *                    When complete_cb is not NULL, this function operate asynchronous.
+ * @param user_data Synchronous: Address to store transfer result. If not need result, specify NULL.
+ *                  Asynchronous: A data to pass to complete_cb.
+ * @return On success, return true. Otherwise, return false.
+ *         When synchronous operation, return true with transfer failed too.
+ *         So caller process must check transfer result.
+ *         If iSerialNumber is 0, this function return false.
+ */
 bool tuh_descriptor_get_serial_string(uint8_t daddr, uint16_t language_id, void* buffer, uint16_t len, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
     usbh_device_t const* dev = get_device(daddr);
@@ -1198,8 +1319,23 @@ bool tuh_descriptor_get_serial_string(uint8_t daddr, uint16_t language_id, void*
     return tuh_descriptor_get_string(daddr, dev->i_serial, language_id, buffer, len, complete_cb, user_data);
 }
 
-// Get HID report descriptor
-// if blocking, user_data is pointed to xfer_result
+/**
+ * @brief Get HID report descriptor. (Synchronous/Asynchronous)
+ * @param daddr Device address.
+ * @param itf_num Interface number.
+ * @param desc_type Descriptor type.
+ * @param index Index number.
+ * @param buffer Buffer to store received data.
+ * @param len Size of buffer.
+ * @param complete_cb Callback function when transfer done.
+ *                    When complete_cb is NULL, this function operate synchronous.
+ *                    When complete_cb is not NULL, this function operate asynchronous.
+ * @param user_data Synchronous: Address to store transfer result. If not need result, specify NULL.
+ *                  Asynchronous: A data to pass to complete_cb.
+ * @return On success, return true. Otherwise, return false.
+ *         When synchronous operation, return true with transfer failed too.
+ *         So caller process must check transfer result.
+ */
 bool tuh_descriptor_get_hid_report(uint8_t daddr, uint8_t itf_num, uint8_t desc_type, uint8_t index, void* buffer, uint16_t len, tuh_xfer_cb_t complete_cb,
                                    uintptr_t user_data)
 {
@@ -1216,32 +1352,89 @@ bool tuh_descriptor_get_hid_report(uint8_t daddr, uint8_t itf_num, uint8_t desc_
     return tuh_control_xfer(&xfer);
 }
 
+/**
+ * @brief Set Configuration (Synchronous/Asynchronous)
+ * @param daddr Device address.
+ * @param config_num Configuration number.
+ * @param complete_cb Callback function when transfer done.
+ *                    When complete_cb is NULL, this function operate synchronous.
+ *                    When complete_cb is not NULL, this function operate asynchronous.
+ * @param user_data Synchronous: Address to store transfer result. If not need result, specify NULL.
+ *                  Asynchronous: A data to pass to complete_cb.
+ * @return On success, return true. Otherwise, return false.
+ *         When synchronous operation, return true with transfer failed too.
+ *         So caller process must check transfer result.
+ */
 bool tuh_configuration_set(uint8_t daddr, uint8_t config_num, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
     TU_LOG_USBH("Set Configuration = %d\r\n", config_num);
 
-    tusb_control_request_t const request = {.bmRequestType_bit = {.recipient = TUSB_REQ_RCPT_DEVICE, .type = TUSB_REQ_TYPE_STANDARD, .direction = TUSB_DIR_OUT},
-                                            .bRequest = TUSB_REQ_SET_CONFIGURATION,
-                                            .wValue = tu_htole16(config_num),
-                                            .wIndex = 0,
-                                            .wLength = 0};
+    //@formatter:off
+    tusb_control_request_t const request = {
+        .bmRequestType_bit = {
+            .recipient = TUSB_REQ_RCPT_DEVICE,
+            .type = TUSB_REQ_TYPE_STANDARD,
+            .direction = TUSB_DIR_OUT
+        },
+        .bRequest = TUSB_REQ_SET_CONFIGURATION,
+        .wValue = tu_htole16(config_num),
+        .wIndex = 0,
+        .wLength = 0
+    };
 
-    tuh_xfer_t xfer = {.daddr = daddr, .ep_addr = 0, .setup = &request, .buffer = NULL, .complete_cb = complete_cb, .user_data = user_data};
+    tuh_xfer_t xfer = {
+        .daddr = daddr,
+        .ep_addr = 0,
+        .setup = &request,
+        .buffer = NULL,
+        .complete_cb = complete_cb,
+        .user_data = user_data
+    };
+    //@formatter:on
 
     return tuh_control_xfer(&xfer);
 }
 
+/**
+ * @brief Set Interface (Synchronous/Asynchronous)
+ * @param daddr Device address.
+ * @param itf_num Interface number.
+ * @param itf_alt Interface alternate number.
+ * @param complete_cb Callback function when transfer done.
+ *                    When complete_cb is NULL, this function operate synchronous.
+ *                    When complete_cb is not NULL, this function operate asynchronous.
+ * @param user_data Synchronous: Address to store transfer result. If not need result, specify NULL.
+ *                  Asynchronous: A data to pass to complete_cb.
+ * @return On success, return true. Otherwise, return false.
+ *         When synchronous operation, return true with transfer failed too.
+ *         So caller process must check transfer result.
+ */
 bool tuh_interface_set(uint8_t daddr, uint8_t itf_num, uint8_t itf_alt, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
     TU_LOG_USBH("Set Interface %u Alternate %u\r\n", itf_num, itf_alt);
 
-    tusb_control_request_t const request = {.bmRequestType_bit = {.recipient = TUSB_REQ_RCPT_DEVICE, .type = TUSB_REQ_TYPE_STANDARD, .direction = TUSB_DIR_OUT},
-                                            .bRequest = TUSB_REQ_SET_INTERFACE,
-                                            .wValue = tu_htole16(itf_alt),
-                                            .wIndex = tu_htole16(itf_num),
-                                            .wLength = 0};
+    //@formatter:off
+    tusb_control_request_t const request = {
+        .bmRequestType_bit = {
+            .recipient = TUSB_REQ_RCPT_DEVICE,
+            .type = TUSB_REQ_TYPE_STANDARD,
+            .direction = TUSB_DIR_OUT
+        },
+        .bRequest = TUSB_REQ_SET_INTERFACE,
+        .wValue = tu_htole16(itf_alt),
+        .wIndex = tu_htole16(itf_num),
+        .wLength = 0
+    };
 
-    tuh_xfer_t xfer = {.daddr = daddr, .ep_addr = 0, .setup = &request, .buffer = NULL, .complete_cb = complete_cb, .user_data = user_data};
+    tuh_xfer_t xfer = {
+        .daddr = daddr,
+        .ep_addr = 0,
+        .setup = &request,
+        .buffer = NULL,
+        .complete_cb = complete_cb,
+        .user_data = user_data
+    };
+    //@formatter:on
 
     return tuh_control_xfer(&xfer);
 }
