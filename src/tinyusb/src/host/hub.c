@@ -82,34 +82,79 @@ static char const* const _hub_feature_str[] = {
 //--------------------------------------------------------------------+
 // HUB
 //--------------------------------------------------------------------+
+/**
+ * @brief Disable HUB feature.
+ * @param hub_addr Hub address.
+ * @param hub_port Hub port.
+ * @param feature Feature value. (HUB_FEATURE_ definitions.)
+ * @param complete_cb Callback function. (NULL:Synchronous operation, Not NULL:Asynchronous operation)
+ * @param user_data Store xfer result at synchronous operation.
+ *                  Parameter to pass to complete_cb at asynchronous operation.
+ * @return On success, return true. Otherwise, return false.
+ */
 bool hub_port_clear_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
-    tusb_control_request_t const request
-        = {.bmRequestType_bit
-           = {.recipient = (hub_port == 0) ? TUSB_REQ_RCPT_DEVICE : TUSB_REQ_RCPT_OTHER, .type = TUSB_REQ_TYPE_CLASS, .direction = TUSB_DIR_OUT},
+    //@formatter:off
+    tusb_control_request_t const request = {
+           .bmRequestType_bit = {
+               .recipient = (hub_port == 0) ? TUSB_REQ_RCPT_DEVICE : TUSB_REQ_RCPT_OTHER,
+               .type = TUSB_REQ_TYPE_CLASS,
+               .direction = TUSB_DIR_OUT
+           },
            .bRequest = HUB_REQUEST_CLEAR_FEATURE,
            .wValue = feature,
            .wIndex = hub_port,
-           .wLength = 0};
+           .wLength = 0
+    };
 
-    tuh_xfer_t xfer = {.daddr = hub_addr, .ep_addr = 0, .setup = &request, .buffer = NULL, .complete_cb = complete_cb, .user_data = user_data};
+    tuh_xfer_t xfer = {
+        .daddr = hub_addr,
+        .ep_addr = 0,
+        .setup = &request,
+        .buffer = NULL,
+        .complete_cb = complete_cb,
+        .user_data = user_data
+    };
+    //@formatter:on
 
     TU_LOG2("HUB Clear Feature: %s, addr = %u port = %u\r\n", _hub_feature_str[feature], hub_addr, hub_port);
     TU_ASSERT(tuh_control_xfer(&xfer));
     return true;
 }
 
+/**
+ * @brief Enable HUB feature. (Synchronous/Asynchronous I/O)
+ * @param hub_addr Hub address.
+ * @param hub_port Hub port.
+ * @param feature Feature value. (HUB_FEATURE_ definitions.)
+ * @param complete_cb Callback function. (NULL:Synchronous operation, Not NULL:Asynchronous operation)
+ * @param user_data Store xfer result at synchronous operation.
+ *                  Parameter to pass to complete_cb at asynchronous operation.
+ * @return On success, return true. Otherwise, return false.
+ */
 bool hub_port_set_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
-    tusb_control_request_t const request
-        = {.bmRequestType_bit
-           = {.recipient = (hub_port == 0) ? TUSB_REQ_RCPT_DEVICE : TUSB_REQ_RCPT_OTHER, .type = TUSB_REQ_TYPE_CLASS, .direction = TUSB_DIR_OUT},
-           .bRequest = HUB_REQUEST_SET_FEATURE,
-           .wValue = feature,
-           .wIndex = hub_port,
-           .wLength = 0};
+    //@formatter:off
+    tusb_control_request_t const request = {
+        .bmRequestType_bit = {
+            .recipient = (hub_port == 0) ? TUSB_REQ_RCPT_DEVICE : TUSB_REQ_RCPT_OTHER,
+            .type = TUSB_REQ_TYPE_CLASS, .direction = TUSB_DIR_OUT
+        },
+        .bRequest = HUB_REQUEST_SET_FEATURE,
+        .wValue = feature,
+        .wIndex = hub_port,
+        .wLength = 0
+    };
 
-    tuh_xfer_t xfer = {.daddr = hub_addr, .ep_addr = 0, .setup = &request, .buffer = NULL, .complete_cb = complete_cb, .user_data = user_data};
+    tuh_xfer_t xfer = {
+        .daddr = hub_addr,
+        .ep_addr = 0,
+        .setup = &request,
+        .buffer = NULL,
+        .complete_cb = complete_cb,
+        .user_data = user_data
+    };
+    //@formatter:on
 
     TU_LOG2("HUB Set Feature: %s, addr = %u port = %u\r\n", _hub_feature_str[feature], hub_addr, hub_port);
     TU_ASSERT(tuh_control_xfer(&xfer));
@@ -118,6 +163,7 @@ bool hub_port_set_feature(uint8_t hub_addr, uint8_t hub_port, uint8_t feature, t
 
 bool hub_port_get_status(uint8_t hub_addr, uint8_t hub_port, void* resp, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
 {
+    //@formatter:off
     tusb_control_request_t const request = {
         .bmRequestType_bit = {.recipient = (hub_port == 0) ? TUSB_REQ_RCPT_DEVICE : TUSB_REQ_RCPT_OTHER, .type = TUSB_REQ_TYPE_CLASS, .direction = TUSB_DIR_IN},
         .bRequest = HUB_REQUEST_GET_STATUS,
@@ -125,7 +171,15 @@ bool hub_port_get_status(uint8_t hub_addr, uint8_t hub_port, void* resp, tuh_xfe
         .wIndex = hub_port,
         .wLength = 4};
 
-    tuh_xfer_t xfer = {.daddr = hub_addr, .ep_addr = 0, .setup = &request, .buffer = resp, .complete_cb = complete_cb, .user_data = user_data};
+    tuh_xfer_t xfer = {
+        .daddr = hub_addr,
+        .ep_addr = 0,
+        .setup = &request,
+        .buffer = resp,
+        .complete_cb = complete_cb,
+        .user_data = user_data
+    };
+    //@formatter:on
 
     TU_LOG2("HUB Get Port Status: addr = %u port = %u\r\n", hub_addr, hub_port);
     TU_VERIFY(tuh_control_xfer(&xfer));
