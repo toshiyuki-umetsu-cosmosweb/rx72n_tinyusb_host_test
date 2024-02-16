@@ -20,13 +20,19 @@ static void cmd_usb_list(int ac, char **av);
 static void cmd_usb_lang_id(int ac, char **av);
 static void cmd_usb_debug(int ac, char **av);
 static void cmd_usb_get_desc_device(int ac, char **av);
+static void cmd_usb_get_desc_config(int ac, char **av);
 static void cmd_usb_get_desc_string(int ac, char **av);
 static void cmd_usb_config(int ac, char **av);
+static void cmd_usb_interface(int ac, char **av);
+static int get_interface_list(uint8_t daddr, uint8_t config_num, tusb_desc_interface_t *list, int max_interface);
 static void cmd_usb_info(int ac, char **av);
 static void print_string_descriptor(const tusb_desc_string_t *pdesc);
 static int utf16_to_utf32(const uint16_t *p, uint32_t *pcode_point);
 static int utf32_to_utf8(uint32_t code_point, uint8_t *pbuf);
 static void print_device_descriptor(const tusb_desc_device_t *pdesc);
+static void print_configuration_descriptor(const tusb_desc_configuration_t *pdesc);
+static void print_interface_descriptor(const tusb_desc_interface_t *pdesc);
+static void print_endpoint_descriptor(const tusb_desc_endpoint_t *pdesc);
 static void print_binary_array(const uint8_t *buf, uint16_t len);
 
 /**
@@ -37,9 +43,11 @@ static const struct cmd_entry USBCommandEntries[] = {
     { "list", "Print USB devices.", cmd_usb_list },
     { "info", "Print USB device information.", cmd_usb_info },
     { "config", "Set/get USB device configuration.", cmd_usb_config },
+    { "interface", "Set/get USB device interface.", cmd_usb_interface },
     { "bus-state", "Print USB bus state.", cmd_usb_bus_state },
     { "int-state", "Print USB int state.", cmd_usb_int_state },
     { "get-desc-device", "Get DEVICE descriptor.", cmd_usb_get_desc_device },
+    { "get-desc-config", "Get CONFIGURATION descriptor.", cmd_usb_get_desc_config },
     { "get-desc-string", "Get STRING descriptor.", cmd_usb_get_desc_string },
     { "lang-id", "Set/get default language Id.", cmd_usb_lang_id },
     { "debug", "Set/get debug mode.", cmd_usb_debug },
@@ -57,8 +65,9 @@ static const int USBCommandEntryCount = (int) (sizeof(USBCommandEntries) / sizeo
 static union
 {
     tusb_desc_device_t device_desc; // Device descriptor.
+    tusb_desc_configuration_t config_desc; // Configuration descriptor.
     tusb_desc_string_t string_desc; // String descriptor.
-    uint8_t ptr[512];
+    uint8_t ptr[1024];
 } IoBuf;
 
 /**
@@ -69,6 +78,12 @@ static uint16_t DefaultLangId = 0x0409;
  * デバッグモードかどうか
  */
 static bool IsDebug = false;
+
+/**
+ * 一時取得用インタフェースリスト。
+ * データサイズが大きいため、スタックでなく静的領域に割り当てる。
+ */
+static tusb_desc_interface_t Interfaces[16];
 
 /**
  * @brief usb コマンドを処理する
@@ -296,6 +311,106 @@ static void cmd_usb_get_desc_device(int ac, char **av)
 }
 
 /**
+ * @brief usb get-desc-config コマンドを処理する
+ *        usb get-desc-config daddr# config#
+ * @param ac 引数の数
+ * @param av 引数配列
+ */
+static void cmd_usb_get_desc_config(int ac, char **av)
+{
+    if (ac >= 4)
+    {
+        int daddr = strtol (av[2], NULL, 0);
+        int config_num = strtol (av[3], NULL, 0);
+        if ((daddr < 0) || (daddr > 255))
+        {
+            printf ("Invalid device addr. %d\n", daddr);
+            return;
+        }
+
+        if (tuh_descriptor_get_configuration_sync((uint8_t)(daddr), (uint8_t)(config_num),
+                                                  IoBuf.ptr, sizeof(tusb_desc_configuration_t)) != XFER_RESULT_SUCCESS)
+        {
+            printf("Bus request failure.\n");
+            return ;
+        }
+        uint16_t total_len = IoBuf.config_desc.wTotalLength;
+        if (total_len > sizeof(IoBuf))
+        {
+            printf("Too large descriptor to receive. (>%d).\n", sizeof(IoBuf));
+            return ;
+        }
+
+        if (tuh_descriptor_get_configuration_sync((uint8_t)(daddr), (uint8_t)(config_num),
+                                                  IoBuf.ptr, total_len) != XFER_RESULT_SUCCESS)
+        {
+            printf("Bus request failure.\n");
+            return ;
+        }
+
+        uint16_t offset = 0;
+        {
+            const tusb_desc_configuration_t *pdesc = (const tusb_desc_configuration_t*)(&(IoBuf.ptr[offset]));
+            print_configuration_descriptor(pdesc);
+            if (IsDebug)
+            {
+                print_binary_array(&(IoBuf.ptr[offset]), pdesc->bLength);
+            }
+
+            offset += pdesc->bLength;
+        }
+        while (offset < total_len)
+        {
+            uint16_t desc_len = IoBuf.ptr[offset + 0];
+            uint16_t desc_type = IoBuf.ptr[offset + 1];
+            if ((offset + desc_len) > total_len)
+            {
+                // Incorrect.
+                printf("-- Unknown descriptor-- (type=%02xh len=%d)\n", desc_type, desc_len);
+                print_binary_array(&(IoBuf.ptr[offset]), (total_len - offset));
+                printf("...broken end.\n");
+                break;
+            }
+
+            if (desc_type == 4)
+            {
+                const tusb_desc_interface_t* pdesc = (const tusb_desc_interface_t*)(&(IoBuf.ptr[offset]));
+                printf("-- Interface %d (alt=%d)--\n", pdesc->bInterfaceNumber, pdesc->bAlternateSetting);
+                print_interface_descriptor(pdesc);
+                if (IsDebug)
+                {
+                    print_binary_array(&(IoBuf.ptr[offset]), desc_len);
+                }
+            }
+            else if (desc_type == 5)
+            {
+                const tusb_desc_endpoint_t *pdesc = (const tusb_desc_endpoint_t *)(&(IoBuf.ptr[offset]));
+                printf("--- Endpoint %d --\n", pdesc->bEndpointAddress & 0x0F);
+                print_endpoint_descriptor(pdesc);
+                if (IsDebug)
+                {
+                    print_binary_array(&(IoBuf.ptr[offset]), desc_len);
+                }
+            }
+            else
+            {
+                printf("-- Unknown descriptor-- (type=%02xh len=%d)\n", desc_type, desc_len);
+                print_binary_array(&(IoBuf.ptr[offset]), desc_len);
+            }
+            offset += desc_len;
+        }
+
+        return ;
+    }
+    else
+    {
+        printf("usage:\n");
+        printf("  usb get-desc-config daddr# config#\n");
+        return ;
+    }
+}
+
+/**
  * @brief usb get-desc-string コマンドを処理する。
  *        usb get-desc-string daddr# index# lang-id#
  *        usb get-desc-string daddr#
@@ -445,6 +560,206 @@ static void cmd_usb_config(int ac, char **av)
         return ;
     }
 }
+
+/**
+ * @brief usb interface コマンドを処理する
+ *        usb interface daddr# iface# alt#
+ *        usb interface daddr# iface#
+ *        usb interface daddr#
+ * @param ac 引数の数
+ * @param av 引数配列
+ */
+static void cmd_usb_interface(int ac, char **av)
+{
+    if (ac >= 5)
+    {
+        int daddr = strtol(av[2], NULL, 0);
+        int iface_num = strtol(av[3], NULL, 0);
+        int iface_alt = strtol(av[4], NULL, 0);
+        if ((daddr < 0) || (daddr > 255))
+        {
+            printf("Invalid device address.\n");
+            return ;
+        }
+        if ((iface_num < 0) || (iface_num > 255))
+        {
+            printf("Invalid interface number.\n");
+            return ;
+        }
+        if ((iface_alt < 0) || (iface_alt > 255))
+        {
+            printf("Invalid interface alt number.\n");
+            return ;
+        }
+
+        // このインタフェースのALT設定をする
+        if (tuh_interface_set_sync(daddr, iface_num, iface_alt) != XFER_RESULT_SUCCESS)
+        {
+            printf("Set interface request failure.\n");
+            return ;
+        }
+
+        uint8_t actual_iface_alt;
+        if (tuh_interface_get_sync(daddr, iface_num, &actual_iface_alt) != XFER_RESULT_SUCCESS)
+        {
+            printf("Get interface request failure.\n");
+            return ;
+        }
+
+        printf("Set interface#%d to %d (requested=%d)\n", iface_num, actual_iface_alt, iface_alt);
+    }
+    else if (ac == 4)
+    {
+        int daddr = strtol(av[2], NULL, 0);
+        int iface_num = strtol(av[3], NULL, 0);
+        if ((daddr < 0) || (daddr > 255))
+        {
+            printf("Invalid device address.\n");
+            return ;
+        }
+        if ((iface_num < 0) || (iface_num > 255))
+        {
+            printf("Invalid interface number.\n");
+            return ;
+        }
+
+        // このUSBデバイスのインタフェースのALT設定を取得して出力する。
+        uint8_t iface_alt;
+        if (tuh_interface_get_sync(daddr, iface_num, &iface_alt) != XFER_RESULT_SUCCESS)
+        {
+            printf("Get interface request failure.\n");
+            return ;
+        }
+        printf("Interface#%d Alt=%d\n", iface_num, iface_alt);
+    }
+    else if (ac == 3)
+    {
+        int daddr = strtol(av[2], NULL, 0);
+        if ((daddr < 0) || (daddr > 255))
+        {
+            printf("Invalid device address.\n");
+            return ;
+        }
+
+        // TODO : このUSBデバイスのインタフェース一覧を取得し、それぞれのALT設定を取得して出力する。
+        uint8_t config_num;
+        if (tuh_configuration_get_sync(daddr, &config_num) != XFER_RESULT_SUCCESS)
+        {
+            printf("Could not current configuration.\n");
+            return ;
+        }
+        if (config_num == 0)
+        {
+            printf("Specified USB device not configured. (config=%d)\n", config_num);
+            return ;
+        }
+
+        int iface_count = get_interface_list(daddr, config_num, Interfaces, sizeof(Interfaces) / sizeof(tusb_desc_interface_t));
+        if (iface_count < 0)
+        {
+            printf("Getting interface list failure.\n");
+            return ;
+        }
+        if (iface_count == 0)
+        {
+            printf("No interfaces.\n");
+            return ;
+        }
+        for (int i = 0; i < iface_count; i++)
+        {
+            const tusb_desc_interface_t *pdesc = &(Interfaces[i]);
+            bool is_selected = false;
+            uint8_t iface_alt;
+            if (tuh_interface_get_sync(daddr, pdesc->bInterfaceNumber, &iface_alt) == XFER_RESULT_SUCCESS)
+            {
+                is_selected = (iface_alt == pdesc->bAlternateSetting);
+            }
+            printf("%cInterface#%d Alt%d Class=%02xh SubClass=%02xh Protocol=%02xh InterfaceDesc=%d\n",
+                    (is_selected ? '*' : ' '), pdesc->bInterfaceNumber, pdesc->bAlternateSetting,
+                    pdesc->bInterfaceClass, pdesc->bInterfaceSubClass, pdesc->bInterfaceProtocol,
+                    pdesc->iInterface);
+        }
+    }
+    else
+    {
+        printf("usage:\n");
+        printf("  usb interface daddr# iface# alt#\n");
+        printf("  usb interface daddr# iface#\n");
+        printf("  usb interface daddr# \n");
+    }
+
+
+    return ;
+}
+
+/**
+ * @brief 指定されたUSBデバイスのインタフェース一覧を取得する。
+ *        この関数は IoBuf を使用する。呼び出し元で IoBuf を使用中は使えない。
+ * @param daddr デバイスアドレス
+ * @param list 取得したインタフェース情報を格納するリスト。tusb_desc_interface_tの配列
+ * @param max_interface listの数
+ * @return 成功した場合、取得したインタフェースの数を返す。エラーが発生した場合、-1を返す。
+ */
+static int get_interface_list(uint8_t daddr, uint8_t config_num, tusb_desc_interface_t *list, int max_interface)
+{
+    if (tuh_descriptor_get_configuration_sync(daddr, config_num, IoBuf.ptr, sizeof(tusb_desc_configuration_t)) != XFER_RESULT_SUCCESS)
+    {
+        return -1;
+    }
+    uint16_t total_len = IoBuf.config_desc.wTotalLength;
+    if (total_len > sizeof(IoBuf))
+    {
+        return -1;
+    }
+
+    if (tuh_descriptor_get_configuration_sync(daddr, config_num, IoBuf.ptr, total_len) != XFER_RESULT_SUCCESS)
+    {
+        return -1;
+    }
+
+    int iface_count = 0;
+    uint16_t offset = 0;
+    {
+        // Configuration descriptor.
+        const tusb_desc_configuration_t *pdesc = (const tusb_desc_configuration_t*)(&(IoBuf.ptr[offset]));
+        offset += pdesc->bLength;
+    }
+    while (offset < total_len)
+    {
+        uint16_t desc_len = IoBuf.ptr[offset + 0];
+        uint16_t desc_type = IoBuf.ptr[offset + 1];
+        if ((offset + desc_len) > total_len)
+        {
+            // Incorrect.
+            return -1;
+        }
+
+        if (desc_type == 4)
+        {
+            const tusb_desc_interface_t* pdesc = (const tusb_desc_interface_t*)(&(IoBuf.ptr[offset]));
+
+            if (iface_count < max_interface)
+            {
+                memcpy(&(list[iface_count]), pdesc, sizeof(tusb_desc_interface_t));
+                iface_count++;
+            }
+            else
+            {
+                // 空きなし
+                return -1;
+            }
+        }
+        else
+        {
+            // do nothing.
+        }
+        offset += desc_len;
+    }
+
+    return iface_count;
+}
+
+
 
 
 /**
@@ -639,6 +954,103 @@ static void print_device_descriptor(const tusb_desc_device_t *pdesc)
 
     return ;
 }
+
+/**
+ * @brief Configuration Descriptorを出力する。
+ *        USB規格では、GET_CONFIGURATIONリクエストを発行すると、
+ *        Configuration Descriptorに続けていろんなディスクリプタを受け取る。（合計wTotalLengthバイト)
+ *        本関数では純粋にConfiguration Descriptorのフィールドだけを出力する。
+ * @param pdesc Configuration Descriptor
+ */
+static void print_configuration_descriptor(const tusb_desc_configuration_t *pdesc)
+{
+    printf("bLength = %u\n", pdesc->bLength);
+    printf("bDescriptorType = %u\n", pdesc->bDescriptorType);
+    printf("wTotalLength = %d\n", pdesc->wTotalLength);
+    printf("bNumInterfaces = %d\n", pdesc->bNumInterfaces);
+    printf("bConfigurationValue = %d\n", pdesc->bConfigurationValue);
+    printf("iConfiguration = %d (desc#)\n", pdesc->iConfiguration);
+    printf("bmAttributes = %02xh ", pdesc->bmAttributes);
+    if (pdesc->bmAttributes & 0x40u)
+    {
+        printf("[Self-powered] ");
+    }
+    if (pdesc->bmAttributes & 0x20u)
+    {
+        printf("[Remote wakeup] ");
+    }
+    printf("\n");
+    printf("bMaxPower = %d (%dmA)\n", pdesc->bMaxPower, (int)(pdesc->bMaxPower) * 2);
+
+    return ;
+}
+/**
+ * @brief Interface Descriptorを出力する。
+ * @param pdesc Interface Descriptor.
+ */
+static void print_interface_descriptor(const tusb_desc_interface_t *pdesc)
+{
+    printf("bLength = %d\n", pdesc->bLength);
+    printf("bDescriptorType = %d\n", pdesc->bDescriptorType);
+    printf("bInterfaceNumber = %d\n", pdesc->bInterfaceNumber);
+    printf("bAlternateSetting = %d\n", pdesc->bAlternateSetting);
+    printf("bNumEndpoints = %d\n", pdesc->bNumEndpoints);
+    printf("bInterfaceClass = %d\n", pdesc->bInterfaceClass);
+    printf("bInterfaceSubClass = %d\n", pdesc->bInterfaceSubClass);
+    printf("bInterfaceProtocol = %d\n", pdesc->bInterfaceProtocol);
+    printf("iInterface = %d (desc#)\n", pdesc->iInterface);
+
+    return ;
+}
+
+/**
+ * @brief Endpoint Descriptorを出力する。
+ * @param pdesc Endpoint Descriptor.
+ */
+static void print_endpoint_descriptor(const tusb_desc_endpoint_t *pdesc)
+{
+    printf("bLength = %d\n", pdesc->bLength);
+    printf("bDescriptorType = %d\n", pdesc->bDescriptorType);
+    uint8_t ep_addr = pdesc->bEndpointAddress;
+    printf("bEndpointAddress = %02xh No=%d(%s)\n", ep_addr, (ep_addr & 0x0F),
+            ((ep_addr & 0x80) ? "In" : "Out"));
+    printf("bmAttributes = %02xh ", *((uint8_t*)(&(pdesc->bmAttributes))));
+    switch (pdesc->bmAttributes.xfer)
+    {
+        case 3: // Interrupt.
+        {
+            uint8_t usage = pdesc->bmAttributes.usage;
+            static const char *usage_text[4] = { "Periodic", "Notification", "Reserved", "Reserved" };
+            printf("Interrupt, %s", usage_text[usage]);
+            break;
+        }
+        case 2: // Bulk
+        {
+            printf("Bulk\n");
+            break;
+        }
+        case 1: // Isochronous
+        {
+            uint8_t sync_type = pdesc->bmAttributes.sync;
+            uint8_t usage = pdesc->bmAttributes.usage;
+            static const char *sync_text[4] = { "No sSynchronization", "Asynchronous", "Adaptive", "Synchronous" };
+            static const char *usage_text[4] = { "Data endpoint", "Feedback endpoint", "Implicit feedback Data endpoint", "Reserved" };
+            printf("Isochronous, %s, %s\n", sync_text[sync_type], usage_text[usage]);
+            break;
+        }
+        case 0: // Control
+        default:
+        {
+            printf("Control\n");
+            break;
+        }
+    }
+    printf("wMaxPacketSize = %d\n", pdesc->wMaxPacketSize);
+    printf("bInterval = %d\n", pdesc->bInterval);
+
+    return ;
+}
+
 
 /**
  * @brief バイナリ配列を出力する。

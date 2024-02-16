@@ -221,10 +221,23 @@ bool tuh_configuration_set(uint8_t daddr, uint8_t config_num, tuh_xfer_cb_t comp
 // return transfer result.
 uint8_t tuh_configuration_set_sync(uint8_t daddr, uint8_t config_num);
 
+// Get Interface (control transfer)
+// true on success, false if there is on-going control transfer or incorrect parameters
+// if complete_cb == NULL i.e blocking, user_data should be pointed to xfer_reuslt_t*
+bool tuh_interface_get(uint8_t daddr, uint8_t itf_num, uint8_t *itf_alt, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+
+// Sync (blocking) version of tuh_interface_get().
+// return transfer result.
+uint8_t tuh_interface_get_sync(uint8_t daddr, uint8_t itf_num, uint8_t *itf_alt);
+
 // Set Interface (control transfer)
 // true on success, false if there is on-going control transfer or incorrect parameters
 // if complete_cb == NULL i.e blocking, user_data should be pointed to xfer_reuslt_t*
 bool tuh_interface_set(uint8_t daddr, uint8_t itf_num, uint8_t itf_alt, tuh_xfer_cb_t complete_cb, uintptr_t user_data);
+
+// Sync (blocking) version of tuh_interface_set().
+// return transfer result.
+uint8_t tuh_interface_set_sync(uint8_t daddr, uint8_t itf_num, uint8_t itf_alt);
 
 //--------------------------------------------------------------------+
 // Descriptors Asynchronous (non-blocking)

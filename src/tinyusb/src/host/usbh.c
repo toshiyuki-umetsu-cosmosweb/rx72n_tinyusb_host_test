@@ -1485,6 +1485,66 @@ uint8_t tuh_configuration_set_sync(uint8_t daddr, uint8_t config_num)
 }
 
 /**
+ * @brief Get Interface (Synchronous/Asynchronous)
+ * @param daddr Device address.
+ * @param itf_num Interface number.
+ * @param itf_alt Variable to store alternate number.
+ * @param complete_cb Callback function when transfer done.
+ *                    When complete_cb is NULL, this function operate synchronous.
+ *                    When complete_cb is not NULL, this function operate asynchronous.
+ * @param user_data Synchronous: Address to store transfer result. If not need result, specify NULL.
+ *                  Asynchronous: A data to pass to complete_cb.
+ * @return On success, return true. Otherwise, return false.
+ *         When synchronous operation, return true with transfer failed too.
+ *         So caller process must check transfer result.
+ */
+bool tuh_interface_get(uint8_t daddr, uint8_t itf_num, uint8_t *itf_alt, tuh_xfer_cb_t complete_cb, uintptr_t user_data)
+{
+    TU_VERIFY(itf_alt != NULL);
+    TU_LOG_USBH("Get Configuration\r\n");
+
+    //@formatter:off
+    tusb_control_request_t const request = {
+        .bmRequestType_bit = {
+            .recipient = TUSB_REQ_RCPT_DEVICE,
+            .type = TUSB_REQ_TYPE_STANDARD,
+            .direction = TUSB_DIR_IN
+        },
+        .bRequest = TUSB_REQ_GET_INTERFACE,
+        .wValue = 0,
+        .wIndex = itf_num,
+        .wLength = 1
+    };
+
+    tuh_xfer_t xfer = {
+        .daddr = daddr,
+        .ep_addr = 0,
+        .setup = &request,
+        .buffer = itf_alt,
+        .complete_cb = complete_cb,
+        .user_data = user_data
+    };
+    //@formatter:on
+
+    return tuh_control_xfer(&xfer);
+}
+
+/**
+ * @brief Get Interface.
+ *        This function blocks caller until transfer done.
+ * @param daddr Device address.
+ * @param itf_num Interface number.
+ * @param itf_alt Variable to store alternate number.
+ * @return Transfer status returned.(See xfer_status_t)
+ */
+uint8_t tuh_interface_get_sync(uint8_t daddr, uint8_t itf_num, uint8_t *itf_alt)
+{
+    xfer_result_t xfer_result;
+    TU_VERIFY(tuh_interface_get(daddr, itf_num, itf_alt, NULL, (uintptr_t)(&xfer_result)), XFER_RESULT_TIMEOUT);
+    return (uint8_t)(xfer_result);
+}
+
+/**
  * @brief Set Interface (Synchronous/Asynchronous)
  * @param daddr Device address.
  * @param itf_num Interface number.
@@ -1527,6 +1587,23 @@ bool tuh_interface_set(uint8_t daddr, uint8_t itf_num, uint8_t itf_alt, tuh_xfer
 
     return tuh_control_xfer(&xfer);
 }
+
+/**
+ * @brief Set Interface
+ *        This function blocks caller until transfer done.
+ * @param daddr Device address.
+ * @param itf_num Interface number.
+ * @param itf_alt Interface alternate number.
+ * @return Transfer status returned.(See xfer_status_t)
+ */
+uint8_t tuh_interface_set_sync(uint8_t daddr, uint8_t itf_num, uint8_t itf_alt)
+{
+    xfer_result_t xfer_result;
+    TU_VERIFY(tuh_interface_set(daddr, itf_num, itf_alt, NULL, (uintptr_t)(&xfer_result)), XFER_RESULT_TIMEOUT);
+    return (uint8_t)(xfer_result);
+}
+
+
 
 //--------------------------------------------------------------------+
 // Descriptor Sync
